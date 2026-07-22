@@ -102,6 +102,13 @@ Full instructions, presets and options: [docs/BUILD.md](docs/BUILD.md).
 * Windows SDK 10.0.22621.0 or later
 * CMake 3.24+
 
+## Licence
+
+MIT — see [LICENSE](LICENSE). Third-party components keep their own licences;
+the OpenVPN engine is GPLv2 and is kept separable through the plugin ABI so each
+licence can be honoured independently. Attribution is listed in
+[ThirdParty/README.md](ThirdParty/README.md).
+
 ## Repository layout
 
 ```
