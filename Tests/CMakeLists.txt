@@ -31,6 +31,7 @@ nova_add_executable(novavpn_unit_tests
         unit/ProfileStoreTests.cpp
         unit/WintunTests.cpp
         unit/EngineRegistryTests.cpp
+        unit/OpenVpnEngineTests.cpp
         unit/IpcProtocolTests.cpp
     DEPENDS
         nova::core

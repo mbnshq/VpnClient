@@ -53,6 +53,26 @@ target_include_directories(nova_wintun_headers INTERFACE "${wintun_SOURCE_DIR}/i
 set(NOVAVPN_WINTUN_DLL "${wintun_SOURCE_DIR}/bin/amd64/wintun.dll"
     CACHE FILEPATH "Path to the fetched wintun.dll (packaging input)")
 
+# --- OpenVPN3 Core (engine only) ------------------------------------------
+# Fetched only when the OpenVPN engine is enabled. Its dependencies (OpenSSL,
+# asio, lz4, fmt) come from the vcpkg toolchain the user configures with; this
+# just brings the pinned OpenVPN3 source that the engine target compiles in.
+# See docs/OPENVPN_ENGINE.md.
+if(NOVAVPN_BUILD_OPENVPN_ENGINE)
+    FetchContent_Declare(openvpn3
+        GIT_REPOSITORY https://github.com/OpenVPN/openvpn3.git
+        GIT_TAG        01f7161e100be52a1030a79ef4a334e1b48322a8
+        GIT_SHALLOW    FALSE)
+    # Populate the source only - we compile the ClientAPI into our own engine
+    # target rather than running OpenVPN3's CMake, which expects pkg-config and
+    # vcpkg-managed layout the engine target provides directly.
+    FetchContent_GetProperties(openvpn3)
+    if(NOT openvpn3_POPULATED)
+        FetchContent_Populate(openvpn3)
+    endif()
+    set(NOVAVPN_OPENVPN3_DIR "${openvpn3_SOURCE_DIR}" CACHE PATH "OpenVPN3 Core source")
+endif()
+
 # --- Catch2 (tests only) --------------------------------------------------
 if(NOVAVPN_BUILD_TESTS)
     FetchContent_Declare(Catch2

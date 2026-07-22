@@ -4,6 +4,11 @@
 include(CMakeDependentOption)
 
 option(NOVAVPN_BUILD_TESTS        "Build unit/integration tests"            ON)
+# The OpenVPN engine compiles OpenVPN3 Core (plus OpenSSL/asio/lz4/fmt via
+# vcpkg) into a dedicated target. It is opt-in because it requires the vcpkg
+# toolchain file and the fetched OpenVPN3 source; the rest of the product builds
+# and tests without it. See docs/OPENVPN_ENGINE.md.
+option(NOVAVPN_BUILD_OPENVPN_ENGINE "Build the OpenVPN3-backed engine"       OFF)
 option(NOVAVPN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"       OFF)
 option(NOVAVPN_ENABLE_ASAN        "Build with AddressSanitizer"             OFF)
 option(NOVAVPN_ENABLE_LTO         "Enable link time code generation"        OFF)

@@ -28,6 +28,8 @@
 #include <NovaVPN/Profiles/ProfileStore.h>
 #include <NovaVPN/Routing/RouteManager.h>
 #include <NovaVPN/Services/ServiceHost.h>
+#include <NovaVPN/Tunnel/Engine.h>
+#include <NovaVPN/Tunnel/OpenVpnEngine.h>
 
 #include <Windows.h>
 
@@ -107,6 +109,16 @@ public:
         m_credentials  = profiles::makeCredentialStore();
         m_profileStore = profiles::makeProfileStore(m_database, m_credentials);
         NOVA_RETURN_IF_ERROR(m_profileStore->open());
+
+        // Protocol engines: register the built-ins available in this build.
+        m_engines = tunnel::makeEngineRegistry();
+        if (auto mutableRegistry =
+                std::dynamic_pointer_cast<tunnel::IMutableEngineRegistry>(m_engines)) {
+            NOVA_RETURN_IF_ERROR(tunnel::registerOpenVpnEngine(*mutableRegistry));
+        }
+        NOVA_LOG_INFO(Channel::Service, "engines available")
+            .field("count", static_cast<u64>(m_engines->availableEngines().size()))
+            .field("openvpn", tunnel::isOpenVpnEngineAvailable());
 
         m_monitor = net::makeNetworkMonitor(m_events);
         NOVA_RETURN_IF_ERROR(m_monitor->start());
@@ -286,6 +298,7 @@ private:
     db::DatabasePtr                    m_database;
     profiles::CredentialStorePtr       m_credentials;
     profiles::ProfileStorePtr          m_profileStore;
+    tunnel::EngineRegistryPtr          m_engines;
     win::UniqueResource<EventHandleTraits> m_stopEvent;
     SteadyTime                         m_startedAt{};
     std::string                        m_instanceId;
