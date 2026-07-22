@@ -30,6 +30,7 @@ nova_add_executable(novavpn_unit_tests
         unit/CredentialStoreTests.cpp
         unit/ProfileStoreTests.cpp
         unit/WintunTests.cpp
+        unit/EngineRegistryTests.cpp
         unit/IpcProtocolTests.cpp
     DEPENDS
         nova::core
@@ -40,6 +41,7 @@ nova_add_executable(novavpn_unit_tests
         nova::services
         nova::database
         nova::driver
+        nova::tunnel
         Catch2::Catch2WithMain
     FOLDER "Tests")
 

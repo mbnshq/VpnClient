@@ -124,4 +124,23 @@ inline constexpr u32 kEngineAbiVersion = 1;
 using EngineAbiVersionFn = u32 (*)();
 using EngineFactoryFn    = IVpnEngine* (*)(const char*);
 
+/// A built-in engine factory registered in-process (as opposed to a plugin DLL).
+using BuiltinEngineFactory = std::function<VpnEnginePtr()>;
+
+/// Creates the standard registry. Built-in engines are registered by the
+/// service at startup via registerBuiltin(); plugins are discovered from disk
+/// with loadPlugins(). `requireSignedPlugins` mirrors the Wintun policy: a
+/// plugin whose Authenticode signature does not verify is refused unless the
+/// machine is explicitly in developer mode.
+[[nodiscard]] EngineRegistryPtr makeEngineRegistry(bool requireSignedPlugins = true);
+
+/// Extended registry surface used by the service to install built-in engines.
+class IMutableEngineRegistry : public IEngineRegistry {
+public:
+    /// Registers a built-in engine under `engineId`. Replacing an existing id
+    /// is refused so a plugin can never shadow a built-in.
+    [[nodiscard]] virtual Status registerBuiltin(std::string engineId,
+                                                 BuiltinEngineFactory factory) = 0;
+};
+
 } // namespace nova::tunnel
