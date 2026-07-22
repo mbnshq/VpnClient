@@ -11,6 +11,7 @@
 
 #include <NovaVPN/Core/Result.h>
 #include <NovaVPN/Core/SecureMemory.h>
+#include <NovaVPN/Database/Database.h>
 #include <NovaVPN/Profiles/Profile.h>
 
 #include <filesystem>
@@ -124,6 +125,14 @@ public:
 };
 
 using CredentialStorePtr = std::shared_ptr<ICredentialStore>;
+
+/// SQLite-backed profile store. Shares an already-opened database with the rest
+/// of the service; seals the verbatim .ovpn source with DPAPI machine scope in
+/// profile_blobs, and delegates secret material to `credentials`. The database
+/// is required; `credentials` may be null (credential erasure on delete is then
+/// skipped), which keeps the store usable in tests that do not touch the vault.
+[[nodiscard]] ProfileStorePtr makeProfileStore(db::DatabasePtr database,
+                                               CredentialStorePtr credentials);
 
 /// Windows Credential Manager implementation. Secrets are stored as
 /// CRED_TYPE_GENERIC entries at CRED_PERSIST_LOCAL_MACHINE scope, so they are

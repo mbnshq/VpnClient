@@ -22,8 +22,10 @@
 #include <NovaVPN/Core/Version.h>
 #include <NovaVPN/Core/WinError.h>
 #include <NovaVPN/Logs/Logger.h>
+#include <NovaVPN/Database/Database.h>
 #include <NovaVPN/Networking/NetworkMonitor.h>
 #include <NovaVPN/Networking/Resolver.h>
+#include <NovaVPN/Profiles/ProfileStore.h>
 #include <NovaVPN/Routing/RouteManager.h>
 #include <NovaVPN/Services/ServiceHost.h>
 
@@ -87,6 +89,25 @@ public:
             NOVA_LOG_WARN(Channel::Routing, "route reconciliation incomplete").status(status);
         }
 
+        // Catalogue: open the database (migrating it) and stand up the profile
+        // store over it plus the machine credential vault.
+        NOVA_ASSIGN_OR_RETURN(auto databasePath, paths::databasePath());
+        m_database = db::makeSqliteDatabase();
+        if (const Status status = m_database->open(databasePath); status.isError()) {
+            // A corrupt catalogue must not wedge the service. Quarantine it and
+            // start fresh; the user's profiles are re-importable, connectivity
+            // is not negotiable.
+            NOVA_LOG_ERROR(Channel::Database, "database unusable; quarantining and recreating")
+                .status(status);
+            std::error_code ec;
+            std::filesystem::rename(databasePath,
+                                    databasePath.wstring() + L".corrupt", ec);
+            NOVA_RETURN_IF_ERROR(m_database->open(databasePath));
+        }
+        m_credentials  = profiles::makeCredentialStore();
+        m_profileStore = profiles::makeProfileStore(m_database, m_credentials);
+        NOVA_RETURN_IF_ERROR(m_profileStore->open());
+
         m_monitor = net::makeNetworkMonitor(m_events);
         NOVA_RETURN_IF_ERROR(m_monitor->start());
         m_resolver = net::makeResolver(m_monitor);
@@ -148,6 +169,12 @@ public:
                 NOVA_LOG_ERROR(Channel::Routing, "owned routes not fully removed")
                     .status(status);
             }
+        }
+        if (m_profileStore) {
+            m_profileStore->close();
+        }
+        if (m_database) {
+            m_database->close();
         }
 
         logs::Logger::instance().flush();
@@ -256,6 +283,9 @@ private:
     routing::RouteManagerPtr           m_routes;
     net::NetworkMonitorPtr             m_monitor;
     net::ResolverPtr                   m_resolver;
+    db::DatabasePtr                    m_database;
+    profiles::CredentialStorePtr       m_credentials;
+    profiles::ProfileStorePtr          m_profileStore;
     win::UniqueResource<EventHandleTraits> m_stopEvent;
     SteadyTime                         m_startedAt{};
     std::string                        m_instanceId;
