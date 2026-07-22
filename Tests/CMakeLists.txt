@@ -33,6 +33,7 @@ nova_add_executable(novavpn_unit_tests
         unit/EngineRegistryTests.cpp
         unit/OpenVpnEngineTests.cpp
         unit/IpcProtocolTests.cpp
+        unit/IpcTransportTests.cpp
     DEPENDS
         nova::core
         nova::logs

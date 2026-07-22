@@ -3,9 +3,13 @@
 nova_add_module(Services
     SOURCES
         src/IpcProtocol.cpp
+        src/IpcServer.cpp
+        src/IpcClient.cpp
         src/ServiceHost.cpp
     HEADERS
         include/NovaVPN/Services/IpcProtocol.h
+        include/NovaVPN/Services/IpcServer.h
+        include/NovaVPN/Services/IpcClient.h
         include/NovaVPN/Services/ServiceHost.h
     DEPENDS
         nova::core
