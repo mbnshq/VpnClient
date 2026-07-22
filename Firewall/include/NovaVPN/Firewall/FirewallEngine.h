@@ -141,4 +141,9 @@ public:
     [[nodiscard]] virtual Result<LeakTestResult> run(const CancellationToken& token) = 0;
 };
 
+/// Creates the WFP-backed firewall engine. open() must be called before apply();
+/// both require the process to run with administrator privileges (the SYSTEM
+/// service).
+[[nodiscard]] FirewallEnginePtr makeFirewallEngine();
+
 } // namespace nova::firewall

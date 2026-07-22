@@ -4,6 +4,7 @@
 nova_add_module(Firewall
     SOURCES
         src/FirewallEngine.cpp
+        src/WfpEngine.cpp
     HEADERS
         include/NovaVPN/Firewall/FirewallEngine.h
     DEPENDS
