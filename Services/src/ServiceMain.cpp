@@ -23,9 +23,12 @@
 #include <NovaVPN/Core/WinError.h>
 #include <NovaVPN/Logs/Logger.h>
 #include <NovaVPN/Database/Database.h>
+#include <NovaVPN/Firewall/FirewallEngine.h>
 #include <NovaVPN/Networking/NetworkMonitor.h>
 #include <NovaVPN/Networking/Resolver.h>
 #include <NovaVPN/Profiles/ProfileStore.h>
+#include <NovaVPN/SplitTunnel/ProcessRegistry.h>
+#include <NovaVPN/SplitTunnel/SplitTunnelEngine.h>
 #include <NovaVPN/Routing/RouteManager.h>
 #include <NovaVPN/Services/IpcServer.h>
 #include <NovaVPN/Services/ServiceApi.h>
@@ -127,6 +130,13 @@ public:
         NOVA_RETURN_IF_ERROR(m_monitor->start());
         m_resolver = net::makeResolver(m_monitor);
 
+        // Split-tunnel control surface and leak tester (network features).
+        m_processes = splittunnel::makeProcessRegistry();
+        (void)m_processes->start();
+        m_splitTunnel = splittunnel::makeSplitTunnelEngine(m_processes);
+        (void)m_splitTunnel->start();
+        m_leakTester = firewall::makeLeakTester(m_monitor, {});
+
         if (auto underlay = m_monitor->underlayAdapter(AddressFamily::IPv4); underlay.isOk()) {
             m_routes->setUnderlayInterface(underlay.value().interfaceIndex);
             NOVA_LOG_INFO(Channel::Network, "underlay adapter")
@@ -154,6 +164,11 @@ public:
         apiDeps.engines     = m_engines;
         apiDeps.credentials = m_credentials;
         apiDeps.events      = m_events;
+        apiDeps.settings    = m_config.get();
+        apiDeps.splitTunnel = m_splitTunnel;
+        apiDeps.processes   = m_processes;
+        apiDeps.leakTester  = m_leakTester;
+        apiDeps.logRing     = m_logRing;
         NOVA_ASSIGN_OR_RETURN(m_apiSubscriptions,
                               service::registerServiceApi(*m_ipc, apiDeps));
 
@@ -200,6 +215,12 @@ public:
             (void)m_tunnels->disconnectAll();
         }
 
+        if (m_splitTunnel) {
+            m_splitTunnel->stop();
+        }
+        if (m_processes) {
+            m_processes->stop();
+        }
         if (m_monitor) {
             m_monitor->stop();
         }
@@ -307,6 +328,10 @@ private:
 
         logger.addSink(logs::makeDebuggerSink());
 
+        // In-memory ring the UI reads for the live log view.
+        m_logRing = std::make_shared<logs::RingBufferSink>(4096, level);
+        logger.addSink(m_logRing);
+
         if (m_configWarning.isError()) {
             NOVA_LOG_WARN(Channel::Service, "configuration could not be loaded")
                 .status(m_configWarning);
@@ -329,6 +354,10 @@ private:
     tunnel::TunnelManagerPtr           m_tunnels;
     ipc::IpcServerPtr                  m_ipc;
     std::vector<EventBus::Subscription> m_apiSubscriptions;
+    splittunnel::ProcessRegistryPtr    m_processes;
+    splittunnel::SplitTunnelEnginePtr  m_splitTunnel;
+    firewall::LeakTesterPtr            m_leakTester;
+    std::shared_ptr<logs::RingBufferSink> m_logRing;
     win::UniqueResource<EventHandleTraits> m_stopEvent;
     SteadyTime                         m_startedAt{};
     std::string                        m_instanceId;

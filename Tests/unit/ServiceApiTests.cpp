@@ -5,8 +5,11 @@
 #include <NovaVPN/Core/Uuid.h>
 #include <NovaVPN/Core/Version.h>
 #include <NovaVPN/Core/WinError.h>
+#include <NovaVPN/Core/Config.h>
 #include <NovaVPN/Database/Database.h>
+#include <NovaVPN/Logs/Sink.h>
 #include <NovaVPN/Services/ServiceApi.h>
+#include <NovaVPN/SplitTunnel/ProcessRegistry.h>
 #include <NovaVPN/Tunnel/Engine.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -120,6 +123,9 @@ struct Harness {
     IpcServerPtr              server;
     std::vector<EventBus::Subscription> subs;
     std::string pipeName;
+    std::unique_ptr<ConfigStore> settings;
+    std::shared_ptr<logs::RingBufferSink> logRing;
+    splittunnel::ProcessRegistryPtr processes;
 
     Harness()
     {
@@ -129,6 +135,14 @@ struct Harness {
         REQUIRE(database->open(dbPath).isOk());
         profiles = profiles::makeProfileStore(database, nullptr);
         REQUIRE(profiles->open().isOk());
+
+        settings = std::make_unique<ConfigStore>(
+            std::filesystem::temp_directory_path() /
+                ("novavpn-settings-" + Uuid::generate().toString() + ".json"),
+            userSettingsDefaults());
+        REQUIRE(settings->load().isOk());
+        logRing = std::make_shared<logs::RingBufferSink>(64, logs::Level::Trace);
+        processes = splittunnel::makeProcessRegistry();
 
         events = EventBus::create();
 
@@ -148,6 +162,9 @@ struct Harness {
         apiDeps.tunnels  = tunnels;
         apiDeps.engines  = registry;
         apiDeps.events   = events;
+        apiDeps.settings = settings.get();
+        apiDeps.processes = processes;
+        apiDeps.logRing  = logRing;
         auto s = service::registerServiceApi(*server, apiDeps);
         REQUIRE(s.isOk());
         subs = std::move(s).value();
@@ -271,4 +288,69 @@ TEST_CASE("GetProfile returns a not-found for an unknown id", "[serviceapi]")
     REQUIRE(response.isOk());
     REQUIRE_FALSE(response.value().success);
     REQUIRE(response.value().errorCode == ErrorCode::NotFound);
+}
+
+TEST_CASE("GetSettings returns the settings document", "[serviceapi]")
+{
+    Harness h;
+    RawClient client;
+    REQUIRE(client.connect(h.pipeName).isOk());
+    REQUIRE(client.hello().value().success);
+
+    auto response = client.call(2, Method::GetSettings, Json::object());
+    REQUIRE(response.isOk());
+    REQUIRE(response.value().success);
+    REQUIRE(response.value().result.contains("appearance"));
+}
+
+TEST_CASE("ListInstalledApps returns a coherent list over IPC", "[serviceapi]")
+{
+    Harness h;
+    RawClient client;
+    REQUIRE(client.connect(h.pipeName).isOk());
+    REQUIRE(client.hello().value().success);
+
+    auto response = client.call(2, Method::ListInstalledApps, Json::object());
+    REQUIRE(response.isOk());
+    REQUIRE(response.value().success);
+    REQUIRE(response.value().result.contains("apps"));
+    // Whatever is installed, every entry carries a path and name.
+    for (const auto& app : response.value().result["apps"])
+    {
+        REQUIRE_FALSE(app["imagePath"].get<std::string>().empty());
+    }
+}
+
+TEST_CASE("RunLeakTest is refused without a leak tester wired", "[serviceapi]")
+{
+    // The harness does not wire a leak tester, so the handler reports the
+    // subsystem is unavailable rather than faulting.
+    Harness h;
+    RawClient client;
+    REQUIRE(client.connect(h.pipeName).isOk());
+    REQUIRE(client.hello().value().success);
+
+    auto response = client.call(2, Method::RunLeakTest, Json::object());
+    REQUIRE(response.isOk());
+    REQUIRE_FALSE(response.value().success);
+    REQUIRE(response.value().errorCode == ErrorCode::Unavailable);
+}
+
+TEST_CASE("GetLogs returns the log ring", "[serviceapi]")
+{
+    Harness h;
+    // Put a line in the ring.
+    nova::logs::LogRecord record;
+    record.message = "test log line";
+    record.timestamp = SystemClock::now();
+    h.logRing->write(record);
+
+    RawClient client;
+    REQUIRE(client.connect(h.pipeName).isOk());
+    REQUIRE(client.hello().value().success);
+
+    auto response = client.call(2, Method::GetLogs, Json::object());
+    REQUIRE(response.isOk());
+    REQUIRE(response.value().success);
+    REQUIRE(response.value().result["lines"].size() >= 1);
 }

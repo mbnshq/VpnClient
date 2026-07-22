@@ -8,10 +8,15 @@
 // standing up the whole Windows service.
 #pragma once
 
+#include <NovaVPN/Core/Config.h>
 #include <NovaVPN/Core/EventBus.h>
 #include <NovaVPN/Core/Result.h>
+#include <NovaVPN/Firewall/FirewallEngine.h>
+#include <NovaVPN/Logs/Sink.h>
 #include <NovaVPN/Profiles/ProfileStore.h>
 #include <NovaVPN/Services/IpcServer.h>
+#include <NovaVPN/SplitTunnel/ProcessRegistry.h>
+#include <NovaVPN/SplitTunnel/SplitTunnelEngine.h>
 #include <NovaVPN/Tunnel/Tunnel.h>
 
 #include <memory>
@@ -21,11 +26,20 @@ namespace nova::service {
 /// Subsystems the API handlers dispatch to. Any may be null; a handler whose
 /// subsystem is absent returns Unavailable rather than faulting.
 struct ServiceApiDeps {
-    profiles::ProfileStorePtr    profiles;
-    tunnel::TunnelManagerPtr     tunnels;
-    tunnel::EngineRegistryPtr    engines;
-    profiles::CredentialStorePtr credentials;
-    std::shared_ptr<EventBus>    events;
+    profiles::ProfileStorePtr        profiles;
+    tunnel::TunnelManagerPtr         tunnels;
+    tunnel::EngineRegistryPtr        engines;
+    profiles::CredentialStorePtr     credentials;
+    std::shared_ptr<EventBus>        events;
+    /// Machine settings store, for GetSettings/SetSettings.
+    ConfigStore*                     settings = nullptr;
+    /// Split-tunnel engine + process registry, for the app picker and rules.
+    splittunnel::SplitTunnelEnginePtr splitTunnel;
+    splittunnel::ProcessRegistryPtr  processes;
+    /// Leak tester, for RunLeakTest.
+    firewall::LeakTesterPtr          leakTester;
+    /// In-memory log ring the UI reads for the live log view.
+    std::shared_ptr<logs::RingBufferSink> logRing;
 };
 
 /// Registers every implemented IPC handler on `server`. Also subscribes to the

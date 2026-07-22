@@ -1,5 +1,6 @@
 #include <NovaVPN/Core/StringUtil.h>
 #include <NovaVPN/Core/Version.h>
+#include <NovaVPN/Logs/LogRecord.h>
 #include <NovaVPN/Logs/Logger.h>
 #include <NovaVPN/Networking/Statistics.h>
 #include <NovaVPN/Services/ServiceApi.h>
@@ -202,6 +203,84 @@ Result<std::vector<EventBus::Subscription>> registerServiceApi(IIpcServer& serve
             const Status status = tunnel.value()->reconnect();
             return status.isOk() ? makeSuccess(ctx.request.id, Json::object())
                                  : makeError(ctx.request.id, status);
+        })));
+
+    // --- settings ----------------------------------------------------------
+
+    NOVA_RETURN_IF_ERROR(set(Method::GetSettings, guarded(deps.settings != nullptr,
+        [settings = deps.settings](const RequestContext& ctx) {
+            return makeSuccess(ctx.request.id, settings->snapshot());
+        })));
+
+    NOVA_RETURN_IF_ERROR(set(Method::SetSettings, guarded(deps.settings != nullptr,
+        [settings = deps.settings](const RequestContext& ctx) {
+            const Status applied = settings->apply(ctx.request.params);
+            if (applied.isError()) {
+                return makeError(ctx.request.id, applied);
+            }
+            (void)settings->save();
+            return makeSuccess(ctx.request.id, settings->snapshot());
+        })));
+
+    // --- split tunnel ------------------------------------------------------
+
+    NOVA_RETURN_IF_ERROR(set(Method::ListInstalledApps, guarded(deps.processes != nullptr,
+        [processes = deps.processes](const RequestContext& ctx) {
+            auto apps = processes->installedApplications();
+            if (apps.isError()) {
+                return makeError(ctx.request.id, apps.status());
+            }
+            Json rows = Json::array();
+            for (const auto& app : apps.value()) {
+                rows.push_back(Json{{"imagePath", app.imagePath},
+                                    {"displayName", app.displayName},
+                                    {"publisher", app.publisher},
+                                    {"running", app.isRunning}});
+            }
+            return makeSuccess(ctx.request.id, Json{{"apps", std::move(rows)}});
+        })));
+
+    NOVA_RETURN_IF_ERROR(set(Method::ListProcesses, guarded(deps.processes != nullptr,
+        [processes = deps.processes](const RequestContext& ctx) {
+            auto running = processes->runningProcesses();
+            if (running.isError()) {
+                return makeError(ctx.request.id, running.status());
+            }
+            Json rows = Json::array();
+            for (const auto& process : running.value()) {
+                rows.push_back(Json{{"pid", process.pid},
+                                    {"name", process.displayName},
+                                    {"imagePath", process.imagePath}});
+            }
+            return makeSuccess(ctx.request.id, Json{{"processes", std::move(rows)}});
+        })));
+
+    // --- protection --------------------------------------------------------
+
+    NOVA_RETURN_IF_ERROR(set(Method::RunLeakTest, guarded(deps.leakTester != nullptr,
+        [leakTester = deps.leakTester](const RequestContext& ctx) {
+            CancellationSource source;
+            auto result = leakTester->run(source.token());
+            if (result.isError()) {
+                return makeError(ctx.request.id, result.status());
+            }
+            return makeSuccess(ctx.request.id,
+                               Json{{"dnsLeak", result.value().dnsLeak},
+                                    {"ipv6Leak", result.value().ipv6Leak},
+                                    {"webRtcLeak", result.value().webRtcLeak},
+                                    {"details", result.value().details}});
+        })));
+
+    // --- logs --------------------------------------------------------------
+
+    NOVA_RETURN_IF_ERROR(set(Method::GetLogs, guarded(deps.logRing != nullptr,
+        [logRing = deps.logRing](const RequestContext& ctx) {
+            const auto records = logRing->snapshot();
+            Json rows = Json::array();
+            for (const auto& record : records) {
+                rows.push_back(logs::formatText(record));
+            }
+            return makeSuccess(ctx.request.id, Json{{"lines", std::move(rows)}});
         })));
 
     // --- diagnostics -------------------------------------------------------
