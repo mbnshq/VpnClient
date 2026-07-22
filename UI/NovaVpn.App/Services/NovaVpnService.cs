@@ -85,8 +85,24 @@ public sealed class NovaVpnService : IDisposable
         return list;
     }
 
-    public Task ImportProfileAsync(string config, string name, CancellationToken ct = default) =>
-        Call(Method.ImportOvpn, new JsonObject { ["config"] = config, ["name"] = name }, ct);
+    public async Task<string> ImportProfileAsync(string config, string name, CancellationToken ct = default)
+    {
+        var response = await Call(Method.ImportOvpn,
+            new JsonObject { ["config"] = config, ["name"] = name }, ct).ConfigureAwait(false);
+        return response.Result["profileId"]?.GetValue<string>() ?? "";
+    }
+
+    /// <summary>Saves (or clears) a profile's username/password in the vault.</summary>
+    public Task SetProfileCredentialsAsync(
+        string profileId, string username, string password, bool savePassword,
+        CancellationToken ct = default) =>
+        Call(Method.SetProfileCredentials, new JsonObject
+        {
+            ["id"] = profileId,
+            ["username"] = username,
+            ["password"] = password,
+            ["savePassword"] = savePassword,
+        }, ct);
 
     public async Task<JsonObject> GetSettingsAsync(CancellationToken ct = default)
     {

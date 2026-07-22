@@ -14,7 +14,13 @@ namespace {
 
 Json profileSummaryJson(const profiles::Profile& profile)
 {
-    // The list view never carries secrets - just what the UI renders per row.
+    using profiles::AuthMethod;
+    const bool needsPassword = profile.authMethod == AuthMethod::UserPassword ||
+                               profile.authMethod == AuthMethod::CertificateAndPassword ||
+                               profile.authMethod == AuthMethod::UserPasswordTotp;
+
+    // The list view never carries secrets - just what the UI renders per row,
+    // plus the flags it needs to decide whether to prompt for credentials.
     return Json{{"id", profile.id},
                 {"name", profile.name},
                 {"country", profile.metadata.country},
@@ -22,7 +28,11 @@ Json profileSummaryJson(const profiles::Profile& profile)
                 {"favorite", profile.metadata.favorite},
                 {"tags", profile.metadata.tags},
                 {"connectCount", profile.metadata.connectCount},
-                {"engine", std::string{profiles::toString(profile.engine)}}};
+                {"engine", std::string{profiles::toString(profile.engine)}},
+                {"authMethod", std::string{profiles::toString(profile.authMethod)}},
+                {"needsPassword", needsPassword},
+                {"hasSavedPassword", needsPassword && profile.credentials.savePassword},
+                {"userName", profile.credentials.userName}};
 }
 
 Json tunnelJson(const tunnel::TunnelPtr& tunnel)
@@ -128,6 +138,46 @@ Result<std::vector<EventBus::Subscription>> registerServiceApi(IIpcServer& serve
                                  : makeError(ctx.request.id, status);
         })));
 
+    NOVA_RETURN_IF_ERROR(set(Method::SetProfileCredentials, guarded(
+        deps.profiles != nullptr && deps.credentials != nullptr,
+        [profiles = deps.profiles, credentials = deps.credentials](const RequestContext& ctx) {
+            const Id id = json::get<std::string>(ctx.request.params, "/id", "");
+            auto profile = profiles->get(id);
+            if (profile.isError()) {
+                return makeError(ctx.request.id, profile.status());
+            }
+
+            const std::string userName = json::get<std::string>(ctx.request.params, "/username", "");
+            const std::string password = json::get<std::string>(ctx.request.params, "/password", "");
+            const bool save            = json::get<bool>(ctx.request.params, "/savePassword", true);
+
+            // Every profile reserves a vault target on import; derive one here
+            // for a profile that predates that (or was added directly).
+            std::string target = profile.value().credentials.credentialTarget;
+            if (target.empty()) {
+                target = "NovaVPN/profile/" + id;
+                profile.value().credentials.credentialTarget = target;
+            }
+
+            if (save && !password.empty()) {
+                const Status stored =
+                    credentials->store(target, userName, SecureString{password});
+                if (stored.isError()) {
+                    return makeError(ctx.request.id, stored);
+                }
+            } else if (!save) {
+                // "Do not save" clears any previously stored secret; the user
+                // will be asked at connect time instead.
+                (void)credentials->erase(target);
+            }
+
+            profile.value().credentials.userName     = userName;
+            profile.value().credentials.savePassword = save && !password.empty();
+            const Status status = profiles->update(profile.value());
+            return status.isOk() ? makeSuccess(ctx.request.id, Json::object())
+                                 : makeError(ctx.request.id, status);
+        })));
+
     // --- connection --------------------------------------------------------
 
     NOVA_RETURN_IF_ERROR(set(Method::Connect, guarded(
@@ -147,6 +197,11 @@ Result<std::vector<EventBus::Subscription>> registerServiceApi(IIpcServer& serve
 
             tunnel::ConnectCredentials creds;
             creds.userName = json::get<std::string>(ctx.request.params, "/username", "");
+            if (creds.userName.empty()) {
+                // Fall back to the username saved with the profile, so a
+                // one-click connect with stored credentials carries both halves.
+                creds.userName = profile.value().credentials.userName;
+            }
             if (ctx.request.params.contains("password")) {
                 creds.password = SecureString{
                     json::get<std::string>(ctx.request.params, "/password", "")};

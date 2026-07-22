@@ -35,6 +35,7 @@ public sealed class MainViewModel : PageViewModelBase
         _service.StatisticsReceived += s => OnUi(() => ApplyStatistics(s));
         _service.Disconnected += () => OnUi(() =>
         {
+            IsServiceConnected = false;
             ServiceStatus = "Lost connection to the NovaVPN service";
             ConnectionState = "Disconnected";
         });
@@ -43,6 +44,9 @@ public sealed class MainViewModel : PageViewModelBase
         DisconnectCommand = new RelayCommand(_ => DisconnectAsync(), _ => IsConnected);
         RefreshCommand = new RelayCommand(_ => RefreshAsync());
         ImportCommand = new RelayCommand(_ => ImportAsync());
+        StartServiceCommand = new RelayCommand(_ => StartServiceAsync(), _ => !IsServiceConnected);
+        EditCredentialsCommand = new RelayCommand(_ => EditCredentialsAsync(),
+            _ => SelectedProfile is { NeedsPassword: true });
     }
 
     public ObservableCollection<ProfileSummary> Profiles { get; } = new();
@@ -51,6 +55,24 @@ public sealed class MainViewModel : PageViewModelBase
     public RelayCommand DisconnectCommand { get; }
     public RelayCommand RefreshCommand { get; }
     public RelayCommand ImportCommand { get; }
+    public RelayCommand StartServiceCommand { get; }
+    public RelayCommand EditCredentialsCommand { get; }
+
+    private bool _isServiceConnected;
+    public bool IsServiceConnected
+    {
+        get => _isServiceConnected;
+        set
+        {
+            if (Set(ref _isServiceConnected, value))
+            {
+                Raise(nameof(IsServiceDisconnected));
+                StartServiceCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsServiceDisconnected => !IsServiceConnected;
 
     public string StatusText { get => _statusText; set => Set(ref _statusText, value); }
     public string ConnectionState
@@ -67,8 +89,19 @@ public sealed class MainViewModel : PageViewModelBase
     public ProfileSummary? SelectedProfile
     {
         get => _selectedProfile;
-        set { if (Set(ref _selectedProfile, value)) { Refresh(); } }
+        set
+        {
+            if (Set(ref _selectedProfile, value))
+            {
+                Refresh();
+                Raise(nameof(SelectedNeedsCredentials));
+                EditCredentialsCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
+
+    /// <summary>True when the selected profile authenticates by username/password.</summary>
+    public bool SelectedNeedsCredentials => SelectedProfile is { NeedsPassword: true };
 
     public bool Busy { get => _busy; set { if (Set(ref _busy, value)) { Refresh(); } } }
 
@@ -79,18 +112,66 @@ public sealed class MainViewModel : PageViewModelBase
 
     public bool CanConnect => !IsConnected && !Busy && SelectedProfile is not null;
 
-    /// <summary>Connects to the service and loads the profile list on startup.</summary>
+    /// <summary>
+    /// Connects to the service and loads the profile list on startup. If the
+    /// service is not yet running, it is started automatically (one elevation
+    /// prompt the first time), then the connection is retried - so the user
+    /// never has to install or manage a service by hand.
+    /// </summary>
     public async Task InitializeAsync()
+    {
+        if (await TryConnectAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
+        // Not reachable: bring the background service up, then retry once.
+        ServiceStatus = "Starting the NovaVPN background service…";
+        var result = await Task.Run(ServiceBootstrap.TryEnsureService).ConfigureAwait(true);
+        if (!result.Ok)
+        {
+            ServiceStatus = result.Message;
+            return;
+        }
+
+        if (!await TryConnectAsync().ConfigureAwait(true))
+        {
+            ServiceStatus =
+                "The NovaVPN background service was started but is not answering yet. " +
+                "Click Refresh in a moment.";
+        }
+    }
+
+    /// <summary>Starts the background service on demand (the "Start service" button).</summary>
+    private async Task StartServiceAsync()
+    {
+        ServiceStatus = "Starting the NovaVPN background service…";
+        var result = await Task.Run(ServiceBootstrap.TryEnsureService).ConfigureAwait(true);
+        if (result.Ok)
+        {
+            await TryConnectAsync().ConfigureAwait(true);
+        }
+        else
+        {
+            ServiceStatus = result.Message;
+        }
+    }
+
+    /// <summary>Attempts a single connect + profile load; true on success.</summary>
+    private async Task<bool> TryConnectAsync()
     {
         try
         {
             await _service.ConnectAsync().ConfigureAwait(true);
+            IsServiceConnected = true;
             ServiceStatus = $"Connected to NovaVPN service {_service.ServiceVersion}";
             await LoadProfilesAsync().ConfigureAwait(true);
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            ServiceStatus = $"Cannot reach the NovaVPN service: {ex.Message}";
+            IsServiceConnected = false;
+            return false;
         }
     }
 
@@ -112,12 +193,41 @@ public sealed class MainViewModel : PageViewModelBase
         {
             return;
         }
+
+        // A username/password profile with nothing saved needs credentials
+        // before the handshake. Prompt once (offering to save), like OpenVPN
+        // Connect, then pass them straight into this connection.
+        string? username = null;
+        string? password = null;
+        if (SelectedProfile.NeedsPassword && !SelectedProfile.HasSavedPassword)
+        {
+            var entered = PromptForCredentials(SelectedProfile);
+            if (entered is null)
+            {
+                StatusText = "Connect cancelled: credentials are required.";
+                return;
+            }
+            username = entered.Value.Username;
+            password = entered.Value.Password;
+            if (entered.Value.Save)
+            {
+                try
+                {
+                    await _service.SetProfileCredentialsAsync(
+                        SelectedProfile.Id, username, password, savePassword: true)
+                        .ConfigureAwait(true);
+                    await LoadProfilesAsync().ConfigureAwait(true);
+                }
+                catch (IpcException) { /* fall through; connect still uses them live */ }
+            }
+        }
+
         Busy = true;
         StatusText = "Connecting…";
         try
         {
             _activeTunnelId = await _service
-                .ConnectTunnelAsync(SelectedProfile.Id, null, null)
+                .ConnectTunnelAsync(SelectedProfile.Id, username, password)
                 .ConfigureAwait(true);
         }
         catch (IpcException ex)
@@ -129,6 +239,45 @@ public sealed class MainViewModel : PageViewModelBase
         {
             Busy = false;
         }
+    }
+
+    /// <summary>Edits the saved username/password for the selected profile.</summary>
+    private async Task EditCredentialsAsync()
+    {
+        if (SelectedProfile is null)
+        {
+            return;
+        }
+        var entered = PromptForCredentials(SelectedProfile);
+        if (entered is null)
+        {
+            return;
+        }
+        try
+        {
+            await _service.SetProfileCredentialsAsync(
+                SelectedProfile.Id, entered.Value.Username, entered.Value.Password,
+                entered.Value.Save).ConfigureAwait(true);
+            StatusText = "Credentials saved.";
+            await LoadProfilesAsync().ConfigureAwait(true);
+        }
+        catch (IpcException ex)
+        {
+            StatusText = $"Could not save credentials: {ex.Message}";
+        }
+    }
+
+    /// <summary>Shows the modal credential prompt; null when the user cancels.</summary>
+    private static (string Username, string Password, bool Save)? PromptForCredentials(
+        ProfileSummary profile)
+    {
+        var dialog = new Views.CredentialDialog(profile.Name, profile.UserName)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        return dialog.ShowDialog() == true
+            ? (dialog.Username, dialog.Password, dialog.SavePassword)
+            : null;
     }
 
     private async Task DisconnectAsync()
@@ -157,6 +306,12 @@ public sealed class MainViewModel : PageViewModelBase
 
     private async Task RefreshAsync()
     {
+        if (!_service.IsConnected)
+        {
+            // Refresh doubles as "try again" when the service is not connected.
+            await InitializeAsync().ConfigureAwait(true);
+            return;
+        }
         try
         {
             await LoadProfilesAsync().ConfigureAwait(true);
@@ -183,13 +338,15 @@ public sealed class MainViewModel : PageViewModelBase
         }
 
         int imported = 0;
+        var importedIds = new List<string>();
         foreach (var path in dialog.FileNames)
         {
             try
             {
                 var config = await File.ReadAllTextAsync(path).ConfigureAwait(true);
                 var name = Path.GetFileNameWithoutExtension(path);
-                await _service.ImportProfileAsync(config, name).ConfigureAwait(true);
+                var id = await _service.ImportProfileAsync(config, name).ConfigureAwait(true);
+                if (!string.IsNullOrEmpty(id)) { importedIds.Add(id); }
                 imported++;
             }
             catch (IpcException ex)
@@ -205,6 +362,30 @@ public sealed class MainViewModel : PageViewModelBase
         if (imported > 0)
         {
             StatusText = $"Imported {imported} profile{(imported == 1 ? "" : "s")}.";
+            await LoadProfilesAsync().ConfigureAwait(true);
+
+            // Offer to set credentials for each imported username/password
+            // profile, so it is ready to connect - the way OpenVPN Connect asks
+            // right after import.
+            foreach (var id in importedIds)
+            {
+                var profile = Profiles.FirstOrDefault(p => p.Id == id);
+                if (profile is { NeedsPassword: true, HasSavedPassword: false })
+                {
+                    SelectedProfile = profile;
+                    var entered = PromptForCredentials(profile);
+                    if (entered is not null)
+                    {
+                        try
+                        {
+                            await _service.SetProfileCredentialsAsync(
+                                id, entered.Value.Username, entered.Value.Password,
+                                entered.Value.Save).ConfigureAwait(true);
+                        }
+                        catch (IpcException) { /* user can set them later */ }
+                    }
+                }
+            }
             await LoadProfilesAsync().ConfigureAwait(true);
         }
     }

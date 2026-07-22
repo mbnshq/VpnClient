@@ -12,7 +12,7 @@ struct NamedMethod {
     std::string_view name;
 };
 
-constexpr std::array<NamedMethod, 32> kMethods{{
+constexpr std::array<NamedMethod, 33> kMethods{{
     {Method::Hello, "Hello"},
     {Method::ListProfiles, "ListProfiles"},
     {Method::GetProfile, "GetProfile"},
@@ -22,6 +22,7 @@ constexpr std::array<NamedMethod, 32> kMethods{{
     {Method::ImportOvpn, "ImportOvpn"},
     {Method::ExportProfile, "ExportProfile"},
     {Method::SetProfileFavorite, "SetProfileFavorite"},
+    {Method::SetProfileCredentials, "SetProfileCredentials"},
     {Method::Connect, "Connect"},
     {Method::Disconnect, "Disconnect"},
     {Method::DisconnectAll, "DisconnectAll"},

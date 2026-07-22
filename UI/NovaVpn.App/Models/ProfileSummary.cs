@@ -13,6 +13,13 @@ public sealed class ProfileSummary
     public ulong ConnectCount { get; init; }
     public string Engine { get; init; } = "";
 
+    /// <summary>True when the profile authenticates with a username/password.</summary>
+    public bool NeedsPassword { get; init; }
+    /// <summary>True when a password is already saved in the vault.</summary>
+    public bool HasSavedPassword { get; init; }
+    /// <summary>The saved username, for pre-fill (never the password).</summary>
+    public string UserName { get; init; } = "";
+
     public string Location =>
         string.IsNullOrEmpty(City) ? Country : $"{City}, {Country}";
 
@@ -25,6 +32,9 @@ public sealed class ProfileSummary
         Favorite = o["favorite"]?.GetValue<bool>() ?? false,
         ConnectCount = o["connectCount"]?.GetValue<ulong>() ?? 0,
         Engine = o["engine"]?.GetValue<string>() ?? "",
+        NeedsPassword = o["needsPassword"]?.GetValue<bool>() ?? false,
+        HasSavedPassword = o["hasSavedPassword"]?.GetValue<bool>() ?? false,
+        UserName = o["userName"]?.GetValue<string>() ?? "",
     };
 }
 

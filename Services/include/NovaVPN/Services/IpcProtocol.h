@@ -49,6 +49,7 @@ enum class Method : u16 {
     ImportOvpn           = 105,
     ExportProfile        = 106,
     SetProfileFavorite   = 107,
+    SetProfileCredentials = 108, ///< Save/replace a profile's username+password.
 
     // --- connection -------------------------------------------------------
     Connect              = 200,

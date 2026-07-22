@@ -17,7 +17,9 @@
 #include <Windows.h>
 
 #include <filesystem>
+#include <map>
 #include <thread>
+#include <utility>
 
 using namespace nova;
 using namespace nova::ipc;
@@ -40,6 +42,40 @@ public:
     Status sendPacket(std::span<const u8>) override { return Status::ok(); }
     Status provideCredential(tunnel::ChallengeKind, SecureString) override { return Status::ok(); }
     Status renegotiate() override { return Status::ok(); }
+};
+
+/// In-memory credential store so tests never touch the real Windows vault.
+class FakeCredentialStore final : public profiles::ICredentialStore {
+public:
+    Status store(const std::string& target, const std::string& userName,
+                 const SecureString& secret) override
+    {
+        m_entries[target] = {userName, std::string{secret.view()}};
+        return Status::ok();
+    }
+    Result<SecureString> retrieve(const std::string& target) override
+    {
+        auto it = m_entries.find(target);
+        if (it == m_entries.end()) { return Status{ErrorCode::NotFound, "no secret"}; }
+        return SecureString{it->second.second};
+    }
+    Result<std::string> userNameFor(const std::string& target) override
+    {
+        auto it = m_entries.find(target);
+        if (it == m_entries.end()) { return Status{ErrorCode::NotFound, "no secret"}; }
+        return it->second.first;
+    }
+    Status erase(const std::string& target) override
+    {
+        m_entries.erase(target);
+        return Status::ok();
+    }
+    bool contains(const std::string& target) const override
+    {
+        return m_entries.find(target) != m_entries.end();
+    }
+
+    std::map<std::string, std::pair<std::string, std::string>> m_entries;
 };
 
 /// Raw pipe client bypassing the SYSTEM-owner check (both ends are the test
@@ -126,6 +162,7 @@ struct Harness {
     std::unique_ptr<ConfigStore> settings;
     std::shared_ptr<logs::RingBufferSink> logRing;
     splittunnel::ProcessRegistryPtr processes;
+    std::shared_ptr<FakeCredentialStore> credentials;
 
     Harness()
     {
@@ -143,6 +180,7 @@ struct Harness {
         REQUIRE(settings->load().isOk());
         logRing = std::make_shared<logs::RingBufferSink>(64, logs::Level::Trace);
         processes = splittunnel::makeProcessRegistry();
+        credentials = std::make_shared<FakeCredentialStore>();
 
         events = EventBus::create();
 
@@ -165,6 +203,7 @@ struct Harness {
         apiDeps.settings = settings.get();
         apiDeps.processes = processes;
         apiDeps.logRing  = logRing;
+        apiDeps.credentials = credentials;
         auto s = service::registerServiceApi(*server, apiDeps);
         REQUIRE(s.isOk());
         subs = std::move(s).value();
@@ -275,6 +314,45 @@ TEST_CASE("ImportOvpn over IPC stores a profile", "[serviceapi]")
     REQUIRE(response.isOk());
     REQUIRE(response.value().success);
     REQUIRE_FALSE(response.value().result["profileId"].get<std::string>().empty());
+}
+
+TEST_CASE("SetProfileCredentials saves a username and password to the vault", "[serviceapi]")
+{
+    Harness h;
+
+    // A username/password profile, imported without saved credentials.
+    profiles::Profile profile = h.sampleProfile("Corp");
+    profile.authMethod = profiles::AuthMethod::UserPassword;
+    profile.certificates.certificatePem.clear(); // pure user/pass, no client cert
+    const Id id = h.profiles->add(profile).value();
+
+    RawClient client;
+    REQUIRE(client.connect(h.pipeName).isOk());
+    REQUIRE(client.hello().value().success);
+
+    auto response = client.call(2, Method::SetProfileCredentials,
+                                Json{{"id", id},
+                                     {"username", "alice"},
+                                     {"password", "s3cret"},
+                                     {"savePassword", true}});
+    REQUIRE(response.isOk());
+    REQUIRE(response.value().success);
+
+    // The secret landed in the vault and the profile now advertises it.
+    auto loaded = h.profiles->get(id).value();
+    REQUIRE(loaded.credentials.userName == "alice");
+    REQUIRE(loaded.credentials.savePassword);
+    REQUIRE(h.credentials->contains(loaded.credentials.credentialTarget));
+    REQUIRE(h.credentials->retrieve(loaded.credentials.credentialTarget).value().equals("s3cret"));
+
+    // The list row exposes the flags the UI uses to skip the prompt.
+    auto list = client.call(3, Method::ListProfiles, Json::object());
+    REQUIRE(list.value().success);
+    const auto& rows = list.value().result["profiles"];
+    REQUIRE(rows.size() == 1);
+    REQUIRE(rows[0]["needsPassword"].get<bool>());
+    REQUIRE(rows[0]["hasSavedPassword"].get<bool>());
+    REQUIRE(rows[0]["userName"].get<std::string>() == "alice");
 }
 
 TEST_CASE("GetProfile returns a not-found for an unknown id", "[serviceapi]")
