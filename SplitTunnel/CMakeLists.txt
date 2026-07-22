@@ -4,6 +4,7 @@
 nova_add_module(SplitTunnel
     SOURCES
         src/SplitTunnelEngine.cpp
+        src/ProcessRegistry.cpp
     HEADERS
         include/NovaVPN/SplitTunnel/ProcessRegistry.h
         include/NovaVPN/SplitTunnel/SplitTunnelEngine.h

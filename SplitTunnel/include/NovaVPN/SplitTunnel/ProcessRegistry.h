@@ -20,6 +20,7 @@
 #include <NovaVPN/Core/Result.h>
 #include <NovaVPN/Core/Types.h>
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -92,5 +93,12 @@ public:
 };
 
 using ProcessRegistryPtr = std::shared_ptr<IProcessRegistry>;
+
+/// Creates the Windows process registry. Enumeration uses the toolhelp
+/// snapshot and the process image APIs; installed-application discovery reads
+/// the Start-menu shortcuts and the uninstall registry keys. Elevation is not
+/// required to enumerate, though image paths of protected/other-user processes
+/// may be unavailable and are reported empty rather than as an error.
+[[nodiscard]] ProcessRegistryPtr makeProcessRegistry();
 
 } // namespace nova::splittunnel
