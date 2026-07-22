@@ -45,7 +45,7 @@ public sealed class IpcClient : IDisposable
             ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await pipe.ConnectAsync((int)timeout.TotalMilliseconds, ct).ConfigureAwait(false);
 
-        VerifyServerIsSystem(pipe);
+        VerifyServerIsTrusted(pipe);
 
         _pipe = pipe;
         _receiveCts = new CancellationTokenSource();
@@ -214,19 +214,24 @@ public sealed class IpcClient : IDisposable
     }
 
     /// <summary>
-    /// Confirms the pipe is owned by the Local System account. Without this a
-    /// process squatting the pipe name could impersonate the service.
+    /// Confirms the pipe is owned by a privileged account - Local System (the
+    /// installed service) or the Administrators group (a service run elevated
+    /// in console mode for development). Both require the creator to already be
+    /// privileged, so a non-admin process cannot forge either ownership and
+    /// impersonate the service; this is the anti-squatting gate.
     /// </summary>
-    private static void VerifyServerIsSystem(NamedPipeClientStream pipe)
+    private static void VerifyServerIsTrusted(NamedPipeClientStream pipe)
     {
         var security = pipe.GetAccessControl();
         var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
         var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-        if (owner is null || !owner.Equals(system))
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+
+        if (owner is null || (!owner.Equals(system) && !owner.Equals(admins)))
         {
             pipe.Dispose();
             throw new IpcException("IpcPeerUntrusted",
-                "the service pipe is not owned by SYSTEM; refusing to trust it");
+                "the service pipe is not owned by a privileged account; refusing to trust it");
         }
     }
 

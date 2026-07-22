@@ -5,6 +5,7 @@
 //   NovaVPNService.exe               run under the SCM (what the SCM invokes)
 //   NovaVPNService.exe --console     run in the foreground for debugging
 //   NovaVPNService.exe --install     register the service (requires elevation)
+//   NovaVPNService.exe --ensure      install if needed, then start (elevation)
 //   NovaVPNService.exe --uninstall   remove the service
 //   NovaVPNService.exe --status      print installation and run state
 //
@@ -370,6 +371,7 @@ void printUsage()
     std::printf("NovaVPN Service %s (%s)\n\n", version::kString.data(), version::kChannel.data());
     std::printf("  --console     run in the foreground\n");
     std::printf("  --install     register the Windows service (requires elevation)\n");
+    std::printf("  --ensure      install if needed, then start (requires elevation)\n");
     std::printf("  --uninstall   remove the Windows service\n");
     std::printf("  --status      print installation and run state\n");
     std::printf("  --help        this text\n");
@@ -419,6 +421,31 @@ int wmain(int argc, wchar_t** argv)
             return reportStatusToConsole(path.status(), "install");
         }
         return reportStatusToConsole(service::installService(path.value().string()), "install");
+    }
+
+    if (has("--ensure")) {
+        // One-shot bootstrap the UI invokes elevated on first run: register the
+        // service if it is missing, then make sure it is running. After this the
+        // service auto-starts at boot, so the UI never needs to elevate again.
+        if (!service::isProcessElevated()) {
+            std::fprintf(stderr, "ensure: administrator privileges are required\n");
+            return 1;
+        }
+        const auto installed = service::isServiceInstalled();
+        if (installed.isError()) {
+            return reportStatusToConsole(installed.status(), "ensure");
+        }
+        if (!installed.value()) {
+            auto path = paths::executablePath();
+            if (path.isError()) {
+                return reportStatusToConsole(path.status(), "ensure");
+            }
+            if (const Status status = service::installService(path.value().string());
+                status.isError()) {
+                return reportStatusToConsole(status, "ensure");
+            }
+        }
+        return reportStatusToConsole(service::startService(), "ensure");
     }
 
     if (has("--uninstall")) {
