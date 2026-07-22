@@ -125,4 +125,15 @@ public:
 
 using CredentialStorePtr = std::shared_ptr<ICredentialStore>;
 
+/// Windows Credential Manager implementation. Secrets are stored as
+/// CRED_TYPE_GENERIC entries at CRED_PERSIST_LOCAL_MACHINE scope, so they are
+/// readable by the SYSTEM service and survive a reboot but are not roamed.
+/// Target names are automatically namespaced under "NovaVPN/" so the product's
+/// credentials never collide with anything else in the vault.
+[[nodiscard]] CredentialStorePtr makeCredentialStore();
+
+/// Namespace prefix applied to every credential target. Exposed so a profile's
+/// stored target reference and the vault entry agree.
+[[nodiscard]] std::string credentialTargetPrefix();
+
 } // namespace nova::profiles

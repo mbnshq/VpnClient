@@ -5,6 +5,7 @@ nova_add_module(Profiles
     SOURCES
         src/Profile.cpp
         src/OvpnParser.cpp
+        src/CredentialStore.cpp
     HEADERS
         include/NovaVPN/Profiles/Profile.h
         include/NovaVPN/Profiles/ProfileStore.h
@@ -12,4 +13,6 @@ nova_add_module(Profiles
     DEPENDS
         nova::core
         nova::logs
-        nova::networking)
+        nova::networking
+    SYSTEM
+        advapi32)
