@@ -13,10 +13,12 @@
 // Implemented in Phase 2.
 #pragma once
 
+#include <NovaVPN/Core/Json.h>
 #include <NovaVPN/Core/Result.h>
 #include <NovaVPN/Networking/IpAddress.h>
 #include <NovaVPN/Routing/RoutingRules.h>
 
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -47,6 +49,13 @@ class IRouteManager {
 public:
     virtual ~IRouteManager() = default;
 
+    /// Interface bindings. applyPolicy() turns rules into concrete routes, and
+    /// for that it must know which interface index each disposition maps to.
+    /// The tunnel manager maintains these as tunnels come and go.
+    virtual void setUnderlayInterface(u32 interfaceIndex) = 0;
+    virtual void setTunnelInterface(const Id& tunnelId, u32 interfaceIndex) = 0;
+    virtual void clearTunnelInterface(const Id& tunnelId) = 0;
+
     /// Pins a host route to `gateway` over the underlay adapter. Must be called
     /// before capturing the default route.
     [[nodiscard]] virtual Status pinGatewayRoute(const net::IpAddress& gateway,
@@ -75,5 +84,21 @@ public:
 };
 
 using RouteManagerPtr = std::shared_ptr<IRouteManager>;
+
+/// The concrete route set a DefaultRouteMode expands to. Pure - exists so the
+/// capture behaviour is unit-testable without touching the live table.
+[[nodiscard]] std::vector<RouteEntry> defaultRouteEntries(DefaultRouteMode mode,
+                                                          AddressFamily family,
+                                                          u32 tunnelInterfaceIndex);
+
+/// Serialisation of the ownership record persisted across crashes.
+[[nodiscard]] Json toJson(const RouteEntry& entry);
+[[nodiscard]] Result<RouteEntry> routeEntryFromJson(const Json& value);
+
+/// Windows implementation over CreateIpForwardEntry2/DeleteIpForwardEntry2.
+/// `recordPath` is the crash-recovery ledger: every owned route is written
+/// there before it is created and removed after it is deleted, so reconcile()
+/// can always unwind a previous run.
+[[nodiscard]] RouteManagerPtr makeRouteManager(std::filesystem::path recordPath);
 
 } // namespace nova::routing

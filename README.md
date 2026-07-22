@@ -53,7 +53,7 @@ build and pass.
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1 | Architecture, `Core`, `Logs`, contracts, service host, tests | ✅ complete |
-| 2 | Core networking: resolver, network monitor, route manager | pending |
+| 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
 | 3 | VPN engine: Wintun, OpenVPN, profile store, SQLite, `.ovpn` parser | pending |
 | 4 | Split tunnel engine: WFP callout, process registry, DNS interception | pending |
 | 5 | UI: WinUI 3 shell, dashboard, profile manager, settings | pending |
@@ -69,12 +69,15 @@ What builds today:
 novavpn_core        Status/Result, secure memory, paths, atomic I/O, JSON, config,
                     cancellation, event bus, Win32 error bridging
 novavpn_logs        asynchronous structured logging; file/event-log/console/ring sinks
-novavpn_networking  IP, CIDR, endpoint and statistics value types
-novavpn_routing     routing policy vocabulary and evaluation
+novavpn_networking  IP/CIDR/endpoint types, network monitor (adapters, default
+                    routes, change notification), scope-pinned DNS resolver
+novavpn_routing     policy vocabulary + evaluation; route-table manager with a
+                    crash-recovery ledger, gateway pinning and default capture
 novavpn_profiles    profile model, validation and serialisation
 novavpn_services    IPC protocol, Windows service host
-NovaVPNService.exe  the service, runnable as a service or in the console
-novavpn_unit_tests  127 test cases, 3762 assertions
+NovaVPNService.exe  the service - runs live: monitors the network, reconciles
+                    routes on start, unwinds them on stop
+novavpn_unit_tests  152 test cases, 3866 assertions
 ```
 
 ---

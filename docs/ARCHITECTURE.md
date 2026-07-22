@@ -286,7 +286,7 @@ loading. An ABI major-version mismatch is refused.
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1 | Architecture, Core, Logs, contracts, service host, tests | **complete** |
-| 2 | Resolver, network monitor, route manager | pending |
+| 2 | Resolver, network monitor, route manager | **complete** |
 | 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | pending |
 | 4 | WFP callout, process registry, split-tunnel engine | pending |
 | 5 | WinUI 3 shell, dashboard, profile manager, settings | pending |

@@ -53,14 +53,28 @@ struct ResolvedHost {
     Milliseconds           elapsed{0};
 };
 
+/// Where queries for one scope are sent: which interface they leave on and, when
+/// non-empty, which servers they go to. The tunnel manager updates the Tunnel
+/// binding whenever a tunnel comes up or down; the Underlay binding is derived
+/// live from the network monitor.
+struct ScopeBinding {
+    u32                    interfaceIndex = 0; ///< 0 = let the OS choose
+    std::vector<IpAddress> servers;            ///< empty = the interface's own
+};
+
 class IResolver {
 public:
     virtual ~IResolver() = default;
 
-    /// Resolves `host` synchronously, honouring cancellation.
+    /// Resolves `host` synchronously, honouring cancellation. A literal address
+    /// short-circuits without touching the network, whatever the scope.
     [[nodiscard]] virtual Result<ResolvedHost> resolve(const std::string& host,
                                                        const ResolveOptions& options,
                                                        const CancellationToken& token) = 0;
+
+    /// Installs the binding used by ResolutionScope::Tunnel. Called by the
+    /// tunnel manager on session establishment and cleared on disconnect.
+    virtual void setTunnelBinding(std::optional<ScopeBinding> binding) = 0;
 
     /// Drops cached answers. Called whenever the tunnel comes up or goes down,
     /// because the correct answer for a name changes with the route.
@@ -72,5 +86,13 @@ public:
 };
 
 using ResolverPtr = std::shared_ptr<IResolver>;
+
+class INetworkMonitor;
+
+/// Windows implementation backed by DnsQueryEx with per-query interface and
+/// server pinning. `monitor` supplies the underlay adapter for
+/// ResolutionScope::Underlay; it may be null, in which case Underlay degrades
+/// to System with a logged warning.
+[[nodiscard]] ResolverPtr makeResolver(std::shared_ptr<INetworkMonitor> monitor);
 
 } // namespace nova::net

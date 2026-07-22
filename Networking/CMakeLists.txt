@@ -1,13 +1,16 @@
-# Networking - address vocabulary, resolution and link-quality contracts.
-# Phase 1 ships the value types (fully implemented and unit-tested); the
-# resolver and network-monitor implementations land in Phase 2.
+# Networking - address vocabulary, the scope-pinned resolver and the network
+# monitor (Phase 2), plus link-quality statistics.
 
 nova_add_module(Networking
     SOURCES
         src/IpAddress.cpp
+        src/SockAddr.cpp
         src/Statistics.cpp
+        src/NetworkMonitor.cpp
+        src/Resolver.cpp
     HEADERS
         include/NovaVPN/Networking/IpAddress.h
+        include/NovaVPN/Networking/SockAddr.h
         include/NovaVPN/Networking/Resolver.h
         include/NovaVPN/Networking/NetworkMonitor.h
         include/NovaVPN/Networking/Statistics.h
@@ -16,4 +19,5 @@ nova_add_module(Networking
         nova::logs
     SYSTEM
         ws2_32
-        iphlpapi)
+        iphlpapi
+        dnsapi)

@@ -22,6 +22,9 @@
 #include <NovaVPN/Core/Version.h>
 #include <NovaVPN/Core/WinError.h>
 #include <NovaVPN/Logs/Logger.h>
+#include <NovaVPN/Networking/NetworkMonitor.h>
+#include <NovaVPN/Networking/Resolver.h>
+#include <NovaVPN/Routing/RouteManager.h>
 #include <NovaVPN/Services/ServiceHost.h>
 
 #include <Windows.h>
@@ -70,11 +73,38 @@ public:
             return win::lastError("CreateEvent(stop)");
         }
 
-        // Phase 2+ attach here, in dependency order. Each returns a Status and
-        // a failure aborts the start, so the service never runs half-armed.
+        // Subsystems attach in dependency order. Each returns a Status and a
+        // failure aborts the start, so the service never runs half-armed.
+
+        // Phase 2: routes are reconciled BEFORE anything else touches the
+        // network - a crashed previous run may have left the default route
+        // captured, and nothing may build on top of that state.
+        NOVA_ASSIGN_OR_RETURN(auto machineRoot, paths::machineRoot());
+        m_routes = routing::makeRouteManager(machineRoot / L"routes.json");
+        if (const Status status = m_routes->reconcile(); status.isError()) {
+            // Reconcile can fail without elevation (console mode as a user);
+            // the service continues but says so, loudly.
+            NOVA_LOG_WARN(Channel::Routing, "route reconciliation incomplete").status(status);
+        }
+
+        m_monitor = net::makeNetworkMonitor(m_events);
+        NOVA_RETURN_IF_ERROR(m_monitor->start());
+        m_resolver = net::makeResolver(m_monitor);
+
+        if (auto underlay = m_monitor->underlayAdapter(AddressFamily::IPv4); underlay.isOk()) {
+            m_routes->setUnderlayInterface(underlay.value().interfaceIndex);
+            NOVA_LOG_INFO(Channel::Network, "underlay adapter")
+                .field("name", underlay.value().name)
+                .field("interface", underlay.value().interfaceIndex)
+                .field("type", static_cast<u32>(underlay.value().type));
+        } else {
+            NOVA_LOG_WARN(Channel::Network, "no underlay connectivity at start")
+                .status(underlay.status());
+        }
+
+        // Phase 3+ attach here:
         //   NOVA_RETURN_IF_ERROR(m_firewall->open());
         //   NOVA_RETURN_IF_ERROR(m_firewall->reconcile());
-        //   NOVA_RETURN_IF_ERROR(m_routes->reconcile());
         //   NOVA_RETURN_IF_ERROR(m_tunnels->start());
         //   NOVA_RETURN_IF_ERROR(m_ipc->start(pipeName()));
 
@@ -106,10 +136,19 @@ public:
                                         .count()));
 
         // Teardown order is the reverse of start; see the class comment.
-        //   m_ipc->stop();
+        //   m_ipc->stop();          (Phase 3+)
         //   m_tunnels->disconnectAll();
-        //   m_routes->removeAllOwnedRoutes();
-        //   m_firewall->clear();   // only when the kill switch is not "hard"
+        //   m_firewall->clear();    only when the kill switch is not "hard"
+
+        if (m_monitor) {
+            m_monitor->stop();
+        }
+        if (m_routes) {
+            if (const Status status = m_routes->removeAllOwnedRoutes(); status.isError()) {
+                NOVA_LOG_ERROR(Channel::Routing, "owned routes not fully removed")
+                    .status(status);
+            }
+        }
 
         logs::Logger::instance().flush();
     }
@@ -158,7 +197,17 @@ private:
 
     Status initialiseLogging()
     {
-        NOVA_ASSIGN_OR_RETURN(auto logDirectory, paths::machineLogDirectory());
+        // The machine log directory needs the installer-created tree. In a
+        // non-elevated console run that tree may be unwritable; logging must
+        // degrade to the user directory rather than aborting the start.
+        std::filesystem::path logDirectory;
+        if (auto machineLogs = paths::machineLogDirectory(); machineLogs.isOk()) {
+            logDirectory = std::move(machineLogs).value();
+        } else {
+            NOVA_ASSIGN_OR_RETURN(logDirectory, paths::userLogDirectory());
+            m_logWarning = std::move(machineLogs).status().withContext(
+                "machine log directory unavailable; using the user directory");
+        }
 
         Level level = Level::Info;
         (void)logs::parseLevel(m_config->get<std::string>("/service/logLevel", "info"), level);
@@ -178,7 +227,9 @@ private:
         if (fileSink.isError()) {
             // Without a file sink the service still runs; the event log keeps
             // the failure visible to an administrator.
-            m_logWarning = std::move(fileSink).status();
+            if (m_logWarning.isOk()) {
+                m_logWarning = std::move(fileSink).status();
+            }
         } else {
             logger.addSink(fileSink.value());
         }
@@ -195,13 +246,16 @@ private:
                 .status(m_configWarning);
         }
         if (m_logWarning.isError()) {
-            NOVA_LOG_ERROR(Channel::Service, "file logging unavailable").status(m_logWarning);
+            NOVA_LOG_WARN(Channel::Service, "logging degraded").status(m_logWarning);
         }
         return Status::ok();
     }
 
     std::unique_ptr<ConfigStore>       m_config;
     std::shared_ptr<EventBus>          m_events;
+    routing::RouteManagerPtr           m_routes;
+    net::NetworkMonitorPtr             m_monitor;
+    net::ResolverPtr                   m_resolver;
     win::UniqueResource<EventHandleTraits> m_stopEvent;
     SteadyTime                         m_startedAt{};
     std::string                        m_instanceId;

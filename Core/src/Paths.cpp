@@ -138,9 +138,38 @@ Status ensureDirectory(const std::filesystem::path& directory)
     return Status::ok();
 }
 
+namespace {
+
+/// True when the current token is elevated (or SYSTEM, whose token always
+/// reports elevated). Local to Paths so Core keeps zero module dependencies.
+bool isTokenElevated() noexcept
+{
+    HANDLE rawToken = nullptr;
+    if (::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &rawToken) == FALSE) {
+        return false;
+    }
+    TOKEN_ELEVATION elevation{};
+    DWORD size = sizeof(elevation);
+    const BOOL ok = ::GetTokenInformation(rawToken, TokenElevation, &elevation,
+                                          sizeof(elevation), &size);
+    ::CloseHandle(rawToken);
+    return ok != FALSE && elevation.TokenIsElevated != 0;
+}
+
+} // namespace
+
 Status ensureProtectedDirectory(const std::filesystem::path& directory)
 {
     NOVA_RETURN_IF_ERROR(ensureDirectory(directory));
+
+    // Only an elevated context may lock the tree down. If a non-elevated dev
+    // run applied this DACL to a directory it happens to own, it would lock
+    // itself out of its own data root on the next call. The production tree is
+    // created by the installer and the SYSTEM service, both elevated, so the
+    // security boundary is unaffected by this gate.
+    if (!isTokenElevated()) {
+        return Status::ok();
+    }
 
     // SDDL: protected (no inheritance from the parent), SYSTEM and the local
     // Administrators group get full control, authenticated users get read and

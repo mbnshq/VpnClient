@@ -84,4 +84,10 @@ public:
 
 using NetworkMonitorPtr = std::shared_ptr<INetworkMonitor>;
 
+/// Windows implementation backed by GetAdaptersAddresses, GetIpForwardTable2
+/// and NotifyIpInterfaceChange/NotifyRouteChange2. Publishes
+/// NetworkChangedEvent on `events` (when provided), debounced so that the
+/// burst of notifications a media change produces becomes one event.
+[[nodiscard]] NetworkMonitorPtr makeNetworkMonitor(std::shared_ptr<EventBus> events);
+
 } // namespace nova::net
