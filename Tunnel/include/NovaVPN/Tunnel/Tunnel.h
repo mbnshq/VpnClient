@@ -13,6 +13,7 @@
 #pragma once
 
 #include <NovaVPN/Core/Cancellation.h>
+#include <NovaVPN/Core/EventBus.h>
 #include <NovaVPN/Core/Result.h>
 #include <NovaVPN/Core/SecureMemory.h>
 #include <NovaVPN/Networking/IpAddress.h>
@@ -26,6 +27,11 @@
 #include <vector>
 
 namespace nova::tunnel {
+
+// Engine.h includes this header, so the engine registry is forward-declared
+// here to break the cycle; the manager only needs the pointer type.
+class IEngineRegistry;
+using EngineRegistryPtr = std::shared_ptr<IEngineRegistry>;
 
 /// Credentials supplied for one connection attempt. Held only for the duration
 /// of the handshake and zeroed immediately afterwards.
@@ -143,5 +149,22 @@ public:
 };
 
 using TunnelManagerPtr = std::shared_ptr<ITunnelManager>;
+
+/// Dependencies the tunnel manager orchestrates. Any may be null in a reduced
+/// configuration (tests), in which case the corresponding step is skipped.
+struct TunnelManagerDeps {
+    EngineRegistryPtr        engines;
+    std::shared_ptr<EventBus> events;
+    /// Optional: applied when a session is established / torn down. Left as a
+    /// forward reference so Tunnel does not depend on Routing's concrete types.
+    std::function<void(const Id& tunnelId, const TunnelSessionInfo&)> onSessionUp;
+    std::function<void(const Id& tunnelId)>                           onSessionDown;
+    /// Global connection defaults (reconnect policy, timeouts).
+    bool                     autoReconnect = true;
+    u32                      maxConcurrentTunnels = 4;
+};
+
+/// Creates the standard tunnel manager.
+[[nodiscard]] TunnelManagerPtr makeTunnelManager(TunnelManagerDeps deps);
 
 } // namespace nova::tunnel

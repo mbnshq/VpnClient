@@ -5,6 +5,7 @@
 nova_add_module(Tunnel
     SOURCES
         src/EngineRegistry.cpp
+        src/TunnelManager.cpp
     HEADERS
         include/NovaVPN/Tunnel/Tunnel.h
         include/NovaVPN/Tunnel/Engine.h
