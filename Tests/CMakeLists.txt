@@ -14,6 +14,7 @@ nova_add_executable(novavpn_unit_tests
         unit/UuidTests.cpp
         unit/ConfigTests.cpp
         unit/CancellationTests.cpp
+        unit/DataProtectionTests.cpp
         unit/EventBusTests.cpp
         unit/LoggerTests.cpp
         unit/IpAddressTests.cpp

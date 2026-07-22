@@ -19,6 +19,7 @@ nova_add_module(Core
         src/Json.cpp
         src/Config.cpp
         src/Cancellation.cpp
+        src/DataProtection.cpp
     HEADERS
         include/NovaVPN/Core/Types.h
         include/NovaVPN/Core/Status.h
@@ -33,6 +34,7 @@ nova_add_module(Core
         include/NovaVPN/Core/Json.h
         include/NovaVPN/Core/Config.h
         include/NovaVPN/Core/Cancellation.h
+        include/NovaVPN/Core/DataProtection.h
         include/NovaVPN/Core/EventBus.h
     DEPENDS
         nlohmann_json::nlohmann_json
@@ -40,7 +42,8 @@ nova_add_module(Core
         bcrypt
         advapi32
         shell32
-        ole32)
+        ole32
+        crypt32)
 
 target_include_directories(novavpn_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>)
