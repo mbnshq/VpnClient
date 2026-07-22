@@ -56,7 +56,7 @@ build and pass.
 | 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
 | 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry, OpenVPN engine | ✅ complete |
 | 4 | Split tunnel: process registry + classifier/engine ✅ · WFP callout driver (kernel, needs WDK) | mostly ✅ |
-| 5 | UI: WPF/.NET 9 client — dashboard + profiles ✅ · split-tunnel/settings/logs screens | partial |
+| 5 | UI: WPF/.NET 9 client — dashboard, split-tunnel picker, settings, logs | ✅ complete |
 | 6 | Firewall: WFP kill switch + DNS/IPv6/WebRTC leak tester | ✅ complete |
 | 7 | Updater: signature/hash/manifest + download/verify/stage | ✅ complete |
 | 8 | Installer (WiX MSI: service, driver, firewall rule, shortcut) | ✅ complete |
