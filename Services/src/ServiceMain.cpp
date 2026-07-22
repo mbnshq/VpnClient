@@ -1,0 +1,303 @@
+// NovaVPN - Services/ServiceMain.cpp
+// Entry point of NovaVPNService.exe.
+//
+// Command line:
+//   NovaVPNService.exe               run under the SCM (what the SCM invokes)
+//   NovaVPNService.exe --console     run in the foreground for debugging
+//   NovaVPNService.exe --install     register the service (requires elevation)
+//   NovaVPNService.exe --uninstall   remove the service
+//   NovaVPNService.exe --status      print installation and run state
+//
+// Phase 1 wires up the host: identity, secure-memory hardening, configuration,
+// logging and the event bus, then idles until stopped. The subsystems it will
+// own (tunnel manager, routing, firewall, split tunnel, updater) are attached
+// in their own phases; each one plugs into the same start/stop ordering
+// enforced here.
+#include <NovaVPN/Core/Config.h>
+#include <NovaVPN/Core/EventBus.h>
+#include <NovaVPN/Core/Handle.h>
+#include <NovaVPN/Core/Paths.h>
+#include <NovaVPN/Core/SecureMemory.h>
+#include <NovaVPN/Core/Uuid.h>
+#include <NovaVPN/Core/Version.h>
+#include <NovaVPN/Core/WinError.h>
+#include <NovaVPN/Logs/Logger.h>
+#include <NovaVPN/Services/ServiceHost.h>
+
+#include <Windows.h>
+
+#include <cstdio>
+#include <memory>
+#include <string>
+#include <vector>
+
+using namespace nova;
+using nova::logs::Channel;
+using nova::logs::Level;
+
+namespace {
+
+/// The service body. Owns process-wide state and enforces the start/stop
+/// ordering that keeps the product leak-free:
+///
+///   start: config -> logging -> firewall reconcile -> route reconcile ->
+///          adapters -> IPC (last, so no client can call in half-built)
+///   stop : IPC (first, so no new work arrives) -> tunnels -> routes ->
+///          firewall (last, so the kill switch outlives everything it guards)
+class NovaVpnService final : public service::IServiceBody {
+public:
+    Status onStart() override
+    {
+        m_startedAt = SteadyClock::now();
+        m_instanceId = Uuid::generate().toString();
+
+        // Harden before anything sensitive is allocated.
+        (void)hardenProcessAgainstDumps();
+
+        NOVA_RETURN_IF_ERROR(initialiseConfig());
+        NOVA_RETURN_IF_ERROR(initialiseLogging());
+
+        NOVA_LOG_INFO(Channel::Service, "NovaVPN service starting")
+            .field("version", std::string{version::kString})
+            .field("channel", std::string{version::kChannel})
+            .field("protocol", version::kIpcProtocol)
+            .field("instance", m_instanceId);
+
+        m_events = EventBus::create();
+
+        m_stopEvent.reset(::CreateEventW(nullptr, TRUE, FALSE, nullptr));
+        if (!m_stopEvent) {
+            return win::lastError("CreateEvent(stop)");
+        }
+
+        // Phase 2+ attach here, in dependency order. Each returns a Status and
+        // a failure aborts the start, so the service never runs half-armed.
+        //   NOVA_RETURN_IF_ERROR(m_firewall->open());
+        //   NOVA_RETURN_IF_ERROR(m_firewall->reconcile());
+        //   NOVA_RETURN_IF_ERROR(m_routes->reconcile());
+        //   NOVA_RETURN_IF_ERROR(m_tunnels->start());
+        //   NOVA_RETURN_IF_ERROR(m_ipc->start(pipeName()));
+
+        NOVA_LOG_INFO(Channel::Service, "service start complete");
+        return Status::ok();
+    }
+
+    void run() override
+    {
+        if (!m_stopEvent) {
+            return;
+        }
+        ::WaitForSingleObject(m_stopEvent.get(), INFINITE);
+    }
+
+    void requestStop() noexcept override
+    {
+        if (m_stopEvent) {
+            ::SetEvent(m_stopEvent.get());
+        }
+    }
+
+    void onStop() noexcept override
+    {
+        NOVA_LOG_INFO(Channel::Service, "service stopping")
+            .field("uptimeSeconds",
+                   static_cast<i64>(std::chrono::duration_cast<Seconds>(
+                                        SteadyClock::now() - m_startedAt)
+                                        .count()));
+
+        // Teardown order is the reverse of start; see the class comment.
+        //   m_ipc->stop();
+        //   m_tunnels->disconnectAll();
+        //   m_routes->removeAllOwnedRoutes();
+        //   m_firewall->clear();   // only when the kill switch is not "hard"
+
+        logs::Logger::instance().flush();
+    }
+
+    void onSuspend() noexcept override
+    {
+        // Tunnels do not survive S3/S4: the adapter and every socket are torn
+        // down by the OS. Disconnecting deliberately - while holding the
+        // firewall policy - means resume cannot leak between wake and reconnect.
+        NOVA_LOG_INFO(Channel::Service, "system suspending; tunnels will be torn down");
+        logs::Logger::instance().flush();
+    }
+
+    void onResume() noexcept override
+    {
+        NOVA_LOG_INFO(Channel::Service, "system resumed; reconnecting");
+    }
+
+    void onSessionChange(u32 eventType, u32 sessionId) noexcept override
+    {
+        NOVA_LOG_DEBUG(Channel::Service, "session change")
+            .field("event", eventType)
+            .field("session", sessionId);
+    }
+
+private:
+    struct EventHandleTraits {
+        using value_type = HANDLE;
+        static value_type invalid() noexcept { return nullptr; }
+        static void close(value_type handle) noexcept { ::CloseHandle(handle); }
+    };
+
+    Status initialiseConfig()
+    {
+        NOVA_ASSIGN_OR_RETURN(auto configPath, paths::machineConfigPath());
+        m_config = std::make_unique<ConfigStore>(configPath, serviceConfigDefaults());
+
+        const Status loaded = m_config->load();
+        if (loaded.isError()) {
+            // A corrupt config must not stop the service: it falls back to
+            // defaults and says so loudly once logging exists.
+            m_configWarning = loaded;
+        }
+        return Status::ok();
+    }
+
+    Status initialiseLogging()
+    {
+        NOVA_ASSIGN_OR_RETURN(auto logDirectory, paths::machineLogDirectory());
+
+        Level level = Level::Info;
+        (void)logs::parseLevel(m_config->get<std::string>("/service/logLevel", "info"), level);
+
+        auto& logger = logs::Logger::instance();
+        logger.removeAllSinks();
+        logger.setMinimumLevel(level);
+
+        logs::FileSinkOptions fileOptions;
+        fileOptions.directory     = logDirectory;
+        fileOptions.baseName      = "service";
+        fileOptions.maxBytes      = m_config->get<u64>("/service/maxLogFileBytes", 16 * 1024 * 1024);
+        fileOptions.retentionDays = m_config->get<int>("/service/logRetentionDays", 14);
+        fileOptions.minimumLevel  = level;
+
+        auto fileSink = logs::makeFileSink(fileOptions);
+        if (fileSink.isError()) {
+            // Without a file sink the service still runs; the event log keeps
+            // the failure visible to an administrator.
+            m_logWarning = std::move(fileSink).status();
+        } else {
+            logger.addSink(fileSink.value());
+        }
+
+        if (auto eventSink = logs::makeEventLogSink(std::string{service::kServiceName});
+            eventSink.isOk()) {
+            logger.addSink(eventSink.value());
+        }
+
+        logger.addSink(logs::makeDebuggerSink());
+
+        if (m_configWarning.isError()) {
+            NOVA_LOG_WARN(Channel::Service, "configuration could not be loaded")
+                .status(m_configWarning);
+        }
+        if (m_logWarning.isError()) {
+            NOVA_LOG_ERROR(Channel::Service, "file logging unavailable").status(m_logWarning);
+        }
+        return Status::ok();
+    }
+
+    std::unique_ptr<ConfigStore>       m_config;
+    std::shared_ptr<EventBus>          m_events;
+    win::UniqueResource<EventHandleTraits> m_stopEvent;
+    SteadyTime                         m_startedAt{};
+    std::string                        m_instanceId;
+    Status                             m_configWarning;
+    Status                             m_logWarning;
+};
+
+void printUsage()
+{
+    std::printf("NovaVPN Service %s (%s)\n\n", version::kString.data(), version::kChannel.data());
+    std::printf("  --console     run in the foreground\n");
+    std::printf("  --install     register the Windows service (requires elevation)\n");
+    std::printf("  --uninstall   remove the Windows service\n");
+    std::printf("  --status      print installation and run state\n");
+    std::printf("  --help        this text\n");
+}
+
+int reportStatusToConsole(const Status& status, const char* action)
+{
+    if (status.isOk()) {
+        std::printf("%s: ok\n", action);
+        return 0;
+    }
+    std::fprintf(stderr, "%s: %s\n", action, status.toString().c_str());
+    return 1;
+}
+
+} // namespace
+
+int wmain(int argc, wchar_t** argv)
+{
+    std::vector<std::string> args;
+    args.reserve(static_cast<std::size_t>(argc));
+    for (int i = 1; i < argc; ++i) {
+        args.push_back(win::toUtf8(argv[i]));
+    }
+
+    const auto has = [&args](std::string_view flag) {
+        for (const auto& arg : args) {
+            if (arg == flag) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (has("--help") || has("-h") || has("/?")) {
+        printUsage();
+        return 0;
+    }
+
+    if (has("--install")) {
+        if (!service::isProcessElevated()) {
+            std::fprintf(stderr, "install: administrator privileges are required\n");
+            return 1;
+        }
+        auto path = paths::executablePath();
+        if (path.isError()) {
+            return reportStatusToConsole(path.status(), "install");
+        }
+        return reportStatusToConsole(service::installService(path.value().string()), "install");
+    }
+
+    if (has("--uninstall")) {
+        if (!service::isProcessElevated()) {
+            std::fprintf(stderr, "uninstall: administrator privileges are required\n");
+            return 1;
+        }
+        return reportStatusToConsole(service::uninstallService(), "uninstall");
+    }
+
+    if (has("--status")) {
+        const auto installed = service::isServiceInstalled();
+        const auto running   = service::isServiceRunning();
+        std::printf("installed: %s\n",
+                    installed.isOk() ? (installed.value() ? "yes" : "no")
+                                     : installed.status().toString().c_str());
+        std::printf("running  : %s\n", running.isOk() ? (running.value() ? "yes" : "no")
+                                                      : running.status().toString().c_str());
+        return 0;
+    }
+
+    auto body = std::make_shared<NovaVpnService>();
+
+    if (has("--console")) {
+        logs::Logger::instance().addSink(logs::makeConsoleSink(Level::Debug));
+        return reportStatusToConsole(service::runAsConsole(body), "console");
+    }
+
+    const Status status = service::runAsService(body);
+    if (status.isError()) {
+        // Being started from a console rather than the SCM is the common case
+        // here; point the user at the flag they wanted.
+        std::fprintf(stderr, "%s\n", status.toString().c_str());
+        std::fprintf(stderr, "Use --console to run in the foreground.\n");
+        return 1;
+    }
+    return 0;
+}

@@ -1,0 +1,31 @@
+// NovaVPN - Core/Version.h (generated from Version.h.in by CMake - do not edit)
+#pragma once
+
+#include <string_view>
+
+namespace nova::version {
+
+inline constexpr int         kMajor   = @PROJECT_VERSION_MAJOR@;
+inline constexpr int         kMinor   = @PROJECT_VERSION_MINOR@;
+inline constexpr int         kPatch   = @PROJECT_VERSION_PATCH@;
+inline constexpr int         kBuild   = @NOVAVPN_VERSION_BUILD@;
+inline constexpr std::string_view kString  = "@PROJECT_VERSION@";
+inline constexpr std::string_view kChannel = "@NOVAVPN_VERSION_CHANNEL@";
+inline constexpr std::string_view kProduct = "NovaVPN";
+
+/// Monotonic integer form used by the updater to compare builds.
+inline constexpr unsigned long long kOrdinal =
+    (static_cast<unsigned long long>(kMajor) << 48) |
+    (static_cast<unsigned long long>(kMinor) << 32) |
+    (static_cast<unsigned long long>(kPatch) << 16) |
+    static_cast<unsigned long long>(kBuild);
+
+/// Version of the UI <-> service IPC contract. Bumped whenever a message shape
+/// changes incompatibly; the service refuses clients that disagree.
+inline constexpr int kIpcProtocol = 1;
+
+/// Version of the on-disk SQLite schema. Migrations are applied on service
+/// start until the database reaches this number.
+inline constexpr int kDatabaseSchema = 1;
+
+} // namespace nova::version

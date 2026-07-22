@@ -1,0 +1,59 @@
+# Build output
+build/
+out/
+install/
+*.user
+*.aps
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.*
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+
+# Build artifacts
+*.obj
+*.lib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.tlog
+*.log
+
+# Signing material - must never be committed
+*.pfx
+*.snk
+*.key
+*.pem
+signing/
+
+# Third-party binaries fetched at build or packaging time
+ThirdParty/**/bin/
+ThirdParty/**/*.dll
+wintun.dll
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store

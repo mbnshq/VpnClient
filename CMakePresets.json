@@ -1,0 +1,88 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/install/${presetName}",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "ninja-debug",
+      "inherits": "base",
+      "displayName": "Ninja x64 Debug",
+      "description": "Fast iteration build. Run from a 'x64 Native Tools' prompt.",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NOVAVPN_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ninja-release",
+      "inherits": "base",
+      "displayName": "Ninja x64 Release",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NOVAVPN_BUILD_TESTS": "ON",
+        "NOVAVPN_ENABLE_LTO": "ON",
+        "NOVAVPN_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "ninja-asan",
+      "inherits": "base",
+      "displayName": "Ninja x64 Debug + ASan",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NOVAVPN_BUILD_TESTS": "ON",
+        "NOVAVPN_ENABLE_ASAN": "ON",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL"
+      }
+    },
+    {
+      "name": "vs2022",
+      "inherits": "base",
+      "displayName": "Visual Studio 2022 x64",
+      "description": "Multi-config IDE build.",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "toolset": "host=x64",
+      "cacheVariables": {
+        "NOVAVPN_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "ninja-debug", "configurePreset": "ninja-debug" },
+    { "name": "ninja-release", "configurePreset": "ninja-release" },
+    { "name": "ninja-asan", "configurePreset": "ninja-asan" },
+    { "name": "vs2022-debug", "configurePreset": "vs2022", "configuration": "Debug" },
+    { "name": "vs2022-release", "configurePreset": "vs2022", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "ninja-debug",
+      "configurePreset": "ninja-debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    },
+    {
+      "name": "ninja-release",
+      "configurePreset": "ninja-release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
