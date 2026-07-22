@@ -54,7 +54,7 @@ build and pass.
 | --- | --- | --- |
 | 1 | Architecture, `Core`, `Logs`, contracts, service host, tests | ✅ complete |
 | 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
-| 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry ✅ · OpenVPN engine ⏳ | in progress |
+| 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry, OpenVPN engine | ✅ complete |
 | 4 | Split tunnel engine: WFP callout, process registry, DNS interception | pending |
 | 5 | UI: WinUI 3 shell, dashboard, profile manager, settings | pending |
 | 6 | Firewall: kill switch, leak protection, leak tester | pending |
@@ -77,7 +77,8 @@ novavpn_database    SQLite catalogue (WAL, migrations, transactions)
 novavpn_profiles    profile model, .ovpn parser, credential vault, DPAPI-sealed
                     profile store
 novavpn_driver      Wintun adapter ownership (dynamic load, signature-verified)
-novavpn_tunnel      engine registry + signed plugin loader (plugin ABI)
+novavpn_tunnel      engine registry + signed plugin loader; OpenVPN engine over
+                    OpenVPN3 Core (opt-in, see docs/OPENVPN_ENGINE.md)
 novavpn_services    IPC protocol, Windows service host
 NovaVPNService.exe  the service - runs live: opens+migrates the database,
                     monitors the network, reconciles routes on start

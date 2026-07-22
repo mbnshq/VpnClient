@@ -287,7 +287,7 @@ loading. An ABI major-version mismatch is refused.
 | --- | --- | --- |
 | 1 | Architecture, Core, Logs, contracts, service host, tests | **complete** |
 | 2 | Resolver, network monitor, route manager | **complete** |
-| 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | pending |
+| 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | **complete** |
 | 4 | WFP callout, process registry, split-tunnel engine | pending |
 | 5 | WinUI 3 shell, dashboard, profile manager, settings | pending |
 | 6 | Kill switch, DNS/IPv6/WebRTC leak protection, leak tester | pending |
