@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NovaVPN installer (WiX v5+ / built with WiX 7 CLI).
+
+  Installs, per machine:
+    * NovaVPNService.exe  - registered as an auto-start Windows service that
+                            restarts on failure (its kill switch may be holding)
+    * NovaVPN.exe         - the desktop client (self-contained, no .NET needed)
+    * wintun.dll          - loaded dynamically and signature-verified by the
+                            service; never linked
+    * a Windows Firewall rule so a default-deny profile does not silently break
+      the service's own connections
+    * Start-menu and optional desktop shortcuts
+
+  The machine data root (%ProgramData%\NovaVPN) is created and ACL'd by the
+  service itself on first start, so the installer does not author it.
+
+  Build:
+    wix build Installer\NovaVPN.wxs -arch x64 -d BinDir=<staging> -o NovaVPN.msi
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
+
+  <Package Name="NovaVPN"
+           Manufacturer="NovaVPN"
+           Version="0.1.0"
+           UpgradeCode="7C6B5A49-2E1D-4F8A-9C3B-1A2B3C4D5E6F"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <!-- Block a downgrade and clean-swap on upgrade. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of NovaVPN is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- A running service pins its files; stop it before an upgrade removes them. -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+
+    <Feature Id="Main" Title="NovaVPN" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="NovaVPN" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramMenuDir" Name="NovaVPN" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+      <!-- The SYSTEM service: auto-start, restart-on-failure. -->
+      <Component Id="ServiceExe" Guid="A1B2C3D4-0001-4E5F-8A9B-0C1D2E3F4A5B">
+        <File Id="NovaVPNServiceExe" Source="$(BinDir)\NovaVPNService.exe" KeyPath="yes" />
+
+        <ServiceInstall Id="NovaVPNServiceInstall"
+                        Name="NovaVPNService"
+                        DisplayName="NovaVPN Connection Service"
+                        Description="Manages NovaVPN tunnels, routing, split tunnelling and network protection. Stopping this service disconnects any active VPN connection."
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Account="LocalSystem"
+                        Vital="yes">
+          <!-- Come back after a crash: the kill switch it programmed still holds. -->
+          <util:ServiceConfig xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+                              FirstFailureActionType="restart"
+                              SecondFailureActionType="restart"
+                              ThirdFailureActionType="restart"
+                              RestartServiceDelayInSeconds="5"
+                              ResetPeriodInDays="1" />
+        </ServiceInstall>
+
+        <ServiceControl Id="NovaVPNServiceControl"
+                        Name="NovaVPNService"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+
+      <!-- The desktop client (self-contained single file). -->
+      <Component Id="ClientExe" Guid="A1B2C3D4-0002-4E5F-8A9B-0C1D2E3F4A5B">
+        <File Id="NovaVPNExe" Source="$(BinDir)\NovaVPN.exe" KeyPath="yes">
+          <!-- Let a default-deny firewall profile keep the client reachable. -->
+          <fw:FirewallException Id="NovaVPNClientFw" Name="NovaVPN" Scope="any"
+                                IgnoreFailure="yes" />
+        </File>
+      </Component>
+
+      <!-- Wintun (dynamically loaded + signature-verified by the service). -->
+      <Component Id="WintunDll" Guid="A1B2C3D4-0003-4E5F-8A9B-0C1D2E3F4A5B">
+        <File Id="WintunDllFile" Source="$(BinDir)\wintun.dll" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="AppProgramMenuDir"
+               Guid="A1B2C3D4-0004-4E5F-8A9B-0C1D2E3F4A5B">
+      <Shortcut Id="NovaVPNShortcut" Name="NovaVPN"
+                Target="[INSTALLFOLDER]NovaVPN.exe" WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveAppProgramMenuDir" Directory="AppProgramMenuDir" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\NovaVPN" Name="installed"
+                     Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+  </Package>
+</Wix>
