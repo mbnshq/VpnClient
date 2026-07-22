@@ -39,7 +39,7 @@ SystemTime fromUnixMillis(i64 millis)
     return SystemTime{std::chrono::milliseconds{millis}};
 }
 
-bool requiresPassword(AuthMethod method) noexcept
+[[maybe_unused]] bool requiresPassword(AuthMethod method) noexcept
 {
     return method == AuthMethod::UserPassword || method == AuthMethod::CertificateAndPassword ||
            method == AuthMethod::UserPasswordTotp;
@@ -143,11 +143,11 @@ Status Profile::validate() const
         return Status{ErrorCode::ProfileInvalid,
                       "authentication requires a client certificate but none is configured"};
     }
-    if (requiresPassword(authMethod) && credentials.credentialTarget.empty() &&
-        credentials.userName.empty()) {
-        return Status{ErrorCode::CredentialsMissing,
-                      "authentication requires credentials but none are configured"};
-    }
+    // Note: a username/password (auth-user-pass) profile is valid to *store*
+    // without saved credentials - the user supplies them at connect time, or
+    // saves them afterwards. Requiring credentials here would make the profile
+    // un-importable until it already had them, which is the wrong order. The
+    // connect path is what enforces that credentials exist before a handshake.
     if (certificates.caPem.empty() && certificates.peerFingerprintSha256.empty() &&
         authMethod != AuthMethod::StaticKey) {
         // Without a CA or a pinned fingerprint the client cannot authenticate

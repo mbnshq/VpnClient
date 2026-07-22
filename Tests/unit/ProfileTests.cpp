@@ -104,13 +104,16 @@ TEST_CASE("profile validation catches every unusable shape",
         REQUIRE(profile.validate().code() == ErrorCode::ProfileInvalid);
     }
 
-    SECTION("password auth without credentials")
+    SECTION("password auth without saved credentials is still storable")
     {
+        // A username/password profile is valid to store before any credentials
+        // are saved: the user supplies them at connect time, or saves them
+        // afterwards. Import must not depend on credentials already existing.
         Profile profile = makeValidProfile();
         profile.authMethod = AuthMethod::UserPassword;
         profile.credentials.credentialTarget.clear();
         profile.credentials.userName.clear();
-        REQUIRE(profile.validate().code() == ErrorCode::CredentialsMissing);
+        REQUIRE(profile.validate().isOk());
     }
 
     SECTION("no way to authenticate the server")
