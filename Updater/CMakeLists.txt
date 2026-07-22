@@ -3,6 +3,7 @@
 nova_add_module(Updater
     SOURCES
         src/Updater.cpp
+        src/SignatureVerifier.cpp
     HEADERS
         include/NovaVPN/Updater/Updater.h
     DEPENDS
@@ -11,4 +12,5 @@ nova_add_module(Updater
     SYSTEM
         winhttp
         wintrust
-        crypt32)
+        crypt32
+        bcrypt)

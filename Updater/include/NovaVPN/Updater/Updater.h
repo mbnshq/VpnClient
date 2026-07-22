@@ -20,6 +20,7 @@
 #include <NovaVPN/Core/Cancellation.h>
 #include <NovaVPN/Core/Result.h>
 
+#include <array>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -113,8 +114,10 @@ class ISignatureVerifier {
 public:
     virtual ~ISignatureVerifier() = default;
 
-    /// Verifies a detached Ed25519 signature over `payload` using the pinned
-    /// public key.
+    /// Verifies a detached ECDSA-P256/SHA-256 signature over `payload` against
+    /// the verifier's public key. (ECDSA P-256 rather than Ed25519 because it
+    /// is natively and reliably supported by Windows CNG across all supported
+    /// OS builds.) The signature is the raw r||s form, 64 bytes.
     [[nodiscard]] virtual Status verifyManifest(std::span<const u8> payload,
                                                 std::span<const u8> signature) const = 0;
 
@@ -127,5 +130,26 @@ public:
     [[nodiscard]] virtual Status verifyHash(const std::filesystem::path& file,
                                             std::string_view expectedHex) const = 0;
 };
+
+/// Creates a signature verifier bound to a SubjectPublicKeyInfo (DER) ECDSA
+/// P-256 public key. The production build passes the key compiled into the
+/// binary; tests pass a generated key.
+[[nodiscard]] Result<std::shared_ptr<ISignatureVerifier>> makeSignatureVerifier(
+    std::span<const u8> publicKeyDer);
+
+/// SHA-256 of a byte span (used by the manifest and hash paths).
+[[nodiscard]] Result<std::array<u8, 32>> sha256(std::span<const u8> data);
+
+/// SHA-256 of a file, streamed so a large package is not read whole into memory.
+[[nodiscard]] Result<std::array<u8, 32>> sha256File(const std::filesystem::path& path);
+
+/// Parses and validates a release manifest document (already signature-checked
+/// by the caller). Reports a precise error for a malformed or downgrade
+/// manifest.
+[[nodiscard]] Result<ReleaseInfo> parseManifest(std::string_view json, Channel channel);
+
+/// Compares two dotted version strings by their version::ordinal form.
+/// Returns <0, 0 or >0.
+[[nodiscard]] int compareVersions(std::string_view a, std::string_view b);
 
 } // namespace nova::updater

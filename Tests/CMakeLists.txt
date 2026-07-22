@@ -35,6 +35,7 @@ nova_add_executable(novavpn_unit_tests
         unit/EngineRegistryTests.cpp
         unit/TunnelManagerTests.cpp
         unit/OpenVpnEngineTests.cpp
+        unit/SignatureVerifierTests.cpp
         unit/IpcProtocolTests.cpp
         unit/IpcTransportTests.cpp
     DEPENDS
@@ -49,6 +50,7 @@ nova_add_executable(novavpn_unit_tests
         nova::tunnel
         nova::firewall
         nova::splittunnel
+        nova::updater
         Catch2::Catch2WithMain
     FOLDER "Tests")
 
