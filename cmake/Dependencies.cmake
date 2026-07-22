@@ -31,6 +31,28 @@ if(TARGET nlohmann_json)
     set_target_properties(nlohmann_json PROPERTIES FOLDER "ThirdParty")
 endif()
 
+# --- Wintun (header only) -------------------------------------------------
+# The Driver module compiles against wintun.h but loads wintun.dll dynamically
+# at runtime (LoadLibraryEx + GetProcAddress), so only the header is a build
+# input. The DLL itself is a packaging artifact fetched and signature-verified
+# by the installer, never linked. wintun.h is released into the public domain.
+FetchContent_Declare(wintun
+    URL      https://www.wintun.net/builds/wintun-0.14.1.zip
+    URL_HASH SHA256=07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+
+FetchContent_MakeAvailable(wintun)
+
+# Expose the header directory as an interface target the Driver module consumes.
+add_library(nova_wintun_headers INTERFACE)
+add_library(nova::wintun_headers ALIAS nova_wintun_headers)
+target_include_directories(nova_wintun_headers INTERFACE "${wintun_SOURCE_DIR}/include")
+
+# Record where the redistributable DLL lives so the packaging step can copy and
+# verify it. Not consumed by the build.
+set(NOVAVPN_WINTUN_DLL "${wintun_SOURCE_DIR}/bin/amd64/wintun.dll"
+    CACHE FILEPATH "Path to the fetched wintun.dll (packaging input)")
+
 # --- Catch2 (tests only) --------------------------------------------------
 if(NOVAVPN_BUILD_TESTS)
     FetchContent_Declare(Catch2

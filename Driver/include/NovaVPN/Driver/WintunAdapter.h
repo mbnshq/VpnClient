@@ -107,4 +107,9 @@ public:
 
 using WintunDriverPtr = std::shared_ptr<IWintunDriver>;
 
+/// Creates the Wintun driver wrapper. load() must be called before use; it
+/// dynamically binds and signature-verifies wintun.dll from the application
+/// directory.
+[[nodiscard]] WintunDriverPtr makeWintunDriver();
+
 } // namespace nova::driver
