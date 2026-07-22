@@ -44,6 +44,7 @@ nova_add_executable(novavpn_unit_tests
         unit/ServiceApiTests.cpp
         stress/ConcurrencyStressTests.cpp
         stress/IpcStressTests.cpp
+        stress/RobustnessTests.cpp
         integration/CrossSubsystemTests.cpp
         bench/Benchmarks.cpp
     DEPENDS
