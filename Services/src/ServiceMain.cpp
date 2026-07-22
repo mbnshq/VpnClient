@@ -27,9 +27,12 @@
 #include <NovaVPN/Networking/Resolver.h>
 #include <NovaVPN/Profiles/ProfileStore.h>
 #include <NovaVPN/Routing/RouteManager.h>
+#include <NovaVPN/Services/IpcServer.h>
+#include <NovaVPN/Services/ServiceApi.h>
 #include <NovaVPN/Services/ServiceHost.h>
 #include <NovaVPN/Tunnel/Engine.h>
 #include <NovaVPN/Tunnel/OpenVpnEngine.h>
+#include <NovaVPN/Tunnel/Tunnel.h>
 
 #include <Windows.h>
 
@@ -135,13 +138,31 @@ public:
                 .status(underlay.status());
         }
 
-        // Phase 3+ attach here:
-        //   NOVA_RETURN_IF_ERROR(m_firewall->open());
-        //   NOVA_RETURN_IF_ERROR(m_firewall->reconcile());
-        //   NOVA_RETURN_IF_ERROR(m_tunnels->start());
-        //   NOVA_RETURN_IF_ERROR(m_ipc->start(pipeName()));
+        // Tunnel manager over the engines and the event bus.
+        tunnel::TunnelManagerDeps tunnelDeps;
+        tunnelDeps.engines = m_engines;
+        tunnelDeps.events  = m_events;
+        tunnelDeps.maxConcurrentTunnels =
+            static_cast<u32>(m_config->get<int>("/service/maxConcurrentTunnels", 4));
+        m_tunnels = tunnel::makeTunnelManager(tunnelDeps);
 
-        NOVA_LOG_INFO(Channel::Service, "service start complete");
+        // IPC last, so no client can call in before the subsystems are built.
+        m_ipc = ipc::makeIpcServer(std::string{version::kString});
+        service::ServiceApiDeps apiDeps;
+        apiDeps.profiles    = m_profileStore;
+        apiDeps.tunnels     = m_tunnels;
+        apiDeps.engines     = m_engines;
+        apiDeps.credentials = m_credentials;
+        apiDeps.events      = m_events;
+        NOVA_ASSIGN_OR_RETURN(m_apiSubscriptions,
+                              service::registerServiceApi(*m_ipc, apiDeps));
+
+        const std::string pipeName =
+            m_config->get<std::string>("/service/ipcPipeName", "NovaVPN.Service");
+        NOVA_RETURN_IF_ERROR(m_ipc->start(pipeName));
+
+        NOVA_LOG_INFO(Channel::Service, "service start complete")
+            .field("pipe", pipeName);
         return Status::ok();
     }
 
@@ -168,10 +189,16 @@ public:
                                         SteadyClock::now() - m_startedAt)
                                         .count()));
 
-        // Teardown order is the reverse of start; see the class comment.
-        //   m_ipc->stop();          (Phase 3+)
-        //   m_tunnels->disconnectAll();
-        //   m_firewall->clear();    only when the kill switch is not "hard"
+        // Teardown order is the reverse of start: IPC stops accepting work
+        // first, then tunnels, then routes, and the firewall last (and only
+        // when the kill switch is not "hard").
+        if (m_ipc) {
+            m_ipc->stop();
+        }
+        m_apiSubscriptions.clear();
+        if (m_tunnels) {
+            (void)m_tunnels->disconnectAll();
+        }
 
         if (m_monitor) {
             m_monitor->stop();
@@ -299,6 +326,9 @@ private:
     profiles::CredentialStorePtr       m_credentials;
     profiles::ProfileStorePtr          m_profileStore;
     tunnel::EngineRegistryPtr          m_engines;
+    tunnel::TunnelManagerPtr           m_tunnels;
+    ipc::IpcServerPtr                  m_ipc;
+    std::vector<EventBus::Subscription> m_apiSubscriptions;
     win::UniqueResource<EventHandleTraits> m_stopEvent;
     SteadyTime                         m_startedAt{};
     std::string                        m_instanceId;

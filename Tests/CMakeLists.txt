@@ -38,6 +38,7 @@ nova_add_executable(novavpn_unit_tests
         unit/SignatureVerifierTests.cpp
         unit/IpcProtocolTests.cpp
         unit/IpcTransportTests.cpp
+        unit/ServiceApiTests.cpp
     DEPENDS
         nova::core
         nova::logs
