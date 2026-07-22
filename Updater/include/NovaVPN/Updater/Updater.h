@@ -152,4 +152,42 @@ public:
 /// Returns <0, 0 or >0.
 [[nodiscard]] int compareVersions(std::string_view a, std::string_view b);
 
+/// Fetches bytes from an https URL. Abstracted so the updater's verify/stage
+/// logic is testable offline with a canned fetcher; the production
+/// implementation is WinHTTP with certificate pinning.
+class IHttpFetcher {
+public:
+    virtual ~IHttpFetcher() = default;
+
+    /// GETs `url` into memory (manifests, signatures - small).
+    [[nodiscard]] virtual Result<std::vector<u8>> get(const std::string& url,
+                                                      const CancellationToken& token) = 0;
+
+    /// Downloads `url` to `destination`, reporting progress. Used for packages.
+    [[nodiscard]] virtual Status download(const std::string& url,
+                                          const std::filesystem::path& destination,
+                                          std::function<void(u64, u64)> onProgress,
+                                          const CancellationToken& token) = 0;
+};
+
+using HttpFetcherPtr = std::shared_ptr<IHttpFetcher>;
+
+/// WinHTTP-backed fetcher with certificate pinning against the pinned leaf
+/// public-key SHA-256 set (empty = no pinning, for internal test servers).
+[[nodiscard]] HttpFetcherPtr makeWinHttpFetcher(std::vector<std::string> pinnedKeySha256 = {});
+
+/// Configuration for the updater.
+struct UpdaterConfig {
+    std::string           feedBaseUrl;   ///< e.g. "https://updates.example.net/"
+    std::filesystem::path stagingDir;    ///< where packages are downloaded
+    std::string           currentVersion;///< this build's version
+    bool                  allowDowngrade = false;
+};
+
+/// Creates the updater over a fetcher, a signature verifier and a config. The
+/// verifier holds the pinned manifest-signing key; the fetcher does transport.
+[[nodiscard]] UpdaterPtr makeUpdater(HttpFetcherPtr fetcher,
+                                     std::shared_ptr<ISignatureVerifier> verifier,
+                                     UpdaterConfig config);
+
 } // namespace nova::updater
