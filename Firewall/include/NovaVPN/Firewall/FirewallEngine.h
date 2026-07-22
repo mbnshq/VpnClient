@@ -20,6 +20,7 @@
 #include <NovaVPN/Core/Cancellation.h>
 #include <NovaVPN/Core/Result.h>
 #include <NovaVPN/Networking/IpAddress.h>
+#include <NovaVPN/Networking/NetworkMonitor.h>
 
 #include <memory>
 #include <optional>
@@ -140,6 +141,18 @@ public:
     virtual ~ILeakTester() = default;
     [[nodiscard]] virtual Result<LeakTestResult> run(const CancellationToken& token) = 0;
 };
+
+using LeakTesterPtr = std::shared_ptr<ILeakTester>;
+
+/// Creates a leak tester that inspects the machine's live network configuration
+/// through the network monitor: it flags a global IPv6 address on a non-tunnel
+/// adapter (a v6 leak around a v4 tunnel), plaintext DNS servers configured on
+/// non-tunnel adapters (a DNS leak surface), and non-tunnel global addresses a
+/// WebRTC host-candidate probe could discover. `tunnelInterfaceLuids` names the
+/// interfaces that are legitimately the tunnel, so traffic on them is not a
+/// leak. Passing an empty set tests the "no tunnel up" baseline.
+[[nodiscard]] LeakTesterPtr makeLeakTester(std::shared_ptr<net::INetworkMonitor> monitor,
+                                           std::vector<u64> tunnelInterfaceLuids);
 
 /// Creates the WFP-backed firewall engine. open() must be called before apply();
 /// both require the process to run with administrator privileges (the SYSTEM

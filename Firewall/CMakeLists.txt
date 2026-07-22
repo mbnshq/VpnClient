@@ -5,6 +5,7 @@ nova_add_module(Firewall
     SOURCES
         src/FirewallEngine.cpp
         src/WfpEngine.cpp
+        src/LeakTester.cpp
     HEADERS
         include/NovaVPN/Firewall/FirewallEngine.h
     DEPENDS
