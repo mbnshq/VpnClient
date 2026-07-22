@@ -289,7 +289,7 @@ loading. An ABI major-version mismatch is refused.
 | 2 | Resolver, network monitor, route manager | **complete** |
 | 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | **complete** |
 | 4 | Process registry **done**; WFP callout driver (WDK) pending | partial |
-| 5 | WinUI 3 shell, dashboard, profile manager, settings | pending (needs Windows App SDK) |
+| 5 | WPF/.NET 9 client: dashboard + profiles **done**; split-tunnel/settings/logs pending | partial |
 | 6 | WFP kill switch **done**; DNS/IPv6/WebRTC leak tester pending | partial |
 | 7 | Updater signature/hash/manifest core **done**; download/apply pending | partial |
 | 8 | Installer (service, driver, firewall rules, shortcuts) | pending (needs WiX) |
