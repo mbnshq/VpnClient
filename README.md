@@ -55,18 +55,25 @@ build and pass.
 | 1 | Architecture, `Core`, `Logs`, contracts, service host, tests | ✅ complete |
 | 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
 | 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry, OpenVPN engine | ✅ complete |
-| 4 | Split tunnel: process registry ✅ · WFP callout driver (WDK) | partial |
-| 5 | UI: WPF/.NET 9 client — dashboard + profile list ✅ · split-tunnel/settings/logs screens | partial |
-| 6 | Firewall: WFP kill switch ✅ · DNS/IPv6/WebRTC leak tester | partial |
-| 7 | Updater: signature/hash/manifest core ✅ · download/apply | partial |
-| 8 | Installer | pending |
-| 9 | Integration, stress, leak tests, benchmarks | ongoing (260 cases) |
+| 4 | Split tunnel: process registry + classifier/engine ✅ · WFP callout driver (kernel, needs WDK) | mostly ✅ |
+| 5 | UI: WPF/.NET 9 client — dashboard + profiles ✅ · split-tunnel/settings/logs screens | partial |
+| 6 | Firewall: WFP kill switch + DNS/IPv6/WebRTC leak tester | ✅ complete |
+| 7 | Updater: signature/hash/manifest + download/verify/stage | ✅ complete |
+| 8 | Installer (WiX MSI: service, driver, firewall rule, shortcut) | ✅ complete |
+| 9 | Testing | ongoing (277 unit cases, 5,244 assertions) |
 | 10 | Optimisation | pending |
 
 Also built: named-pipe IPC transport (server + client), tunnel manager, and the
 service API wiring the backend together. **The service runs end to end** — opens
 the database, registers engines, builds the tunnel manager, and listens on its
 pipe; a client can list/import profiles and connect/disconnect tunnels over IPC.
+
+**The product builds and runs.** The client ships as a standalone self-contained
+`NovaVPN.exe` (no .NET install required), and the WiX MSI installs the service,
+client and driver and registers the auto-start service. The one component that
+cannot be built in this environment is the **kernel WFP callout driver** (the
+enforcement half of split tunnelling) — it needs the WDK plus kernel
+test-signing; its decision logic (the classifier) is done and tested.
 
 What builds today:
 

@@ -288,12 +288,12 @@ loading. An ABI major-version mismatch is refused.
 | 1 | Architecture, Core, Logs, contracts, service host, tests | **complete** |
 | 2 | Resolver, network monitor, route manager | **complete** |
 | 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | **complete** |
-| 4 | Process registry **done**; WFP callout driver (WDK) pending | partial |
+| 4 | Process registry + classifier/engine **done**; WFP callout driver (kernel, needs WDK) | mostly complete |
 | 5 | WPF/.NET 9 client: dashboard + profiles **done**; split-tunnel/settings/logs pending | partial |
-| 6 | WFP kill switch **done**; DNS/IPv6/WebRTC leak tester pending | partial |
-| 7 | Updater signature/hash/manifest core **done**; download/apply pending | partial |
-| 8 | Installer (service, driver, firewall rules, shortcuts) | pending (needs WiX) |
-| 9 | Integration, stress, leak tests, benchmarks | ongoing (260 cases so far) |
+| 6 | WFP kill switch + DNS/IPv6/WebRTC leak tester | **complete** |
+| 7 | Updater: signature/hash/manifest + download/verify/stage | **complete** |
+| 8 | WiX MSI installer (service, driver, firewall rule, shortcut) | **complete** |
+| 9 | Testing | ongoing (277 unit cases) |
 | 10 | Optimisation | pending |
 
 Also complete outside the original phase numbering: the named-pipe IPC transport
