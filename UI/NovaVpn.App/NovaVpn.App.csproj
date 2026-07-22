@@ -25,8 +25,14 @@
     <AssemblyName>NovaVPN</AssemblyName>
     <RootNamespace>NovaVpn.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\NovaVPN.ico</ApplicationIcon>
     <Version>0.1.0</Version>
     <Product>NovaVPN</Product>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bundle the icon so the window can reference it at runtime too. -->
+    <Resource Include="Assets\NovaVPN.ico" />
+  </ItemGroup>
 
 </Project>

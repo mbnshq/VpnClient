@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using NovaVpn.App.Ipc;
 using NovaVpn.App.Models;
@@ -41,6 +42,7 @@ public sealed class MainViewModel : PageViewModelBase
         ConnectCommand = new RelayCommand(_ => ConnectAsync(), _ => CanConnect);
         DisconnectCommand = new RelayCommand(_ => DisconnectAsync(), _ => IsConnected);
         RefreshCommand = new RelayCommand(_ => RefreshAsync());
+        ImportCommand = new RelayCommand(_ => ImportAsync());
     }
 
     public ObservableCollection<ProfileSummary> Profiles { get; } = new();
@@ -48,6 +50,7 @@ public sealed class MainViewModel : PageViewModelBase
     public RelayCommand ConnectCommand { get; }
     public RelayCommand DisconnectCommand { get; }
     public RelayCommand RefreshCommand { get; }
+    public RelayCommand ImportCommand { get; }
 
     public string StatusText { get => _statusText; set => Set(ref _statusText, value); }
     public string ConnectionState
@@ -68,6 +71,8 @@ public sealed class MainViewModel : PageViewModelBase
     }
 
     public bool Busy { get => _busy; set { if (Set(ref _busy, value)) { Refresh(); } } }
+
+    public bool HasNoProfiles => Profiles.Count == 0;
 
     public bool IsConnected =>
         ConnectionState is "Connected" or "Reconnecting";
@@ -98,6 +103,7 @@ public sealed class MainViewModel : PageViewModelBase
             Profiles.Add(profile);
         }
         SelectedProfile ??= Profiles.FirstOrDefault();
+        Raise(nameof(HasNoProfiles));
     }
 
     private async Task ConnectAsync()
@@ -158,6 +164,48 @@ public sealed class MainViewModel : PageViewModelBase
         catch (IpcException ex)
         {
             ServiceStatus = ex.Message;
+        }
+    }
+
+    /// <summary>Imports one or more .ovpn files chosen by the user.</summary>
+    private async Task ImportAsync()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import an OpenVPN profile",
+            Filter = "OpenVPN profiles (*.ovpn;*.conf)|*.ovpn;*.conf|All files (*.*)|*.*",
+            Multiselect = true,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        int imported = 0;
+        foreach (var path in dialog.FileNames)
+        {
+            try
+            {
+                var config = await File.ReadAllTextAsync(path).ConfigureAwait(true);
+                var name = Path.GetFileNameWithoutExtension(path);
+                await _service.ImportProfileAsync(config, name).ConfigureAwait(true);
+                imported++;
+            }
+            catch (IpcException ex)
+            {
+                StatusText = $"Import failed for {Path.GetFileName(path)}: {ex.Message}";
+            }
+            catch (IOException ex)
+            {
+                StatusText = $"Could not read {Path.GetFileName(path)}: {ex.Message}";
+            }
+        }
+
+        if (imported > 0)
+        {
+            StatusText = $"Imported {imported} profile{(imported == 1 ? "" : "s")}.";
+            await LoadProfilesAsync().ConfigureAwait(true);
         }
     }
 

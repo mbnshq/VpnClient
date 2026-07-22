@@ -14,23 +14,29 @@ public sealed class ShellViewModel : ObservableObject
     {
         Dashboard = new MainViewModel(service);
         SplitTunnel = new SplitTunnelViewModel(service);
+        Statistics = new StatisticsViewModel(service);
         Settings = new SettingsViewModel(service);
         Logs = new LogsViewModel(service);
+        About = new AboutViewModel(service);
 
         Pages = new PageViewModel[]
         {
-            new("Dashboard", "", Dashboard),
-            new("Split tunnel", "", SplitTunnel),
-            new("Settings", "", Settings),
-            new("Logs", "", Logs),
+            new("Dashboard", Dashboard),
+            new("Split tunnel", SplitTunnel),
+            new("Statistics", Statistics),
+            new("Settings", Settings),
+            new("Logs", Logs),
+            new("About", About),
         };
         _currentPage = Pages[0];
     }
 
     public MainViewModel Dashboard { get; }
     public SplitTunnelViewModel SplitTunnel { get; }
+    public StatisticsViewModel Statistics { get; }
     public SettingsViewModel Settings { get; }
     public LogsViewModel Logs { get; }
+    public AboutViewModel About { get; }
 
     public PageViewModel[] Pages { get; }
 
@@ -53,18 +59,16 @@ public sealed class ShellViewModel : ObservableObject
     }
 }
 
-/// <summary>A navigation entry: a title, a Segoe Fluent icon glyph, and its view model.</summary>
+/// <summary>A navigation entry: a title and its view model.</summary>
 public sealed class PageViewModel
 {
-    public PageViewModel(string title, string glyph, PageViewModelBase content)
+    public PageViewModel(string title, PageViewModelBase content)
     {
         Title = title;
-        Glyph = glyph;
         Content = content;
     }
 
     public string Title { get; }
-    public string Glyph { get; }
     public PageViewModelBase Content { get; }
 }
 

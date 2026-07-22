@@ -270,11 +270,11 @@ TEST_CASE("ImportOvpn over IPC stores a profile", "[serviceapi]")
         "<cert>\ncertcontent\n</cert>\n";
     auto response = client.call(2, Method::ImportOvpn,
                                 Json{{"config", config}, {"name", "Imported"}});
-    // ImportOvpn is a privileged method; the test process is not elevated, so
-    // it is refused - proving the authorisation gate is wired end to end.
+    // Profile import is a normal user operation (not admin-gated), so it
+    // succeeds and stores the profile - the end-to-end import path.
     REQUIRE(response.isOk());
-    REQUIRE_FALSE(response.value().success);
-    REQUIRE(response.value().errorCode == ErrorCode::PermissionDenied);
+    REQUIRE(response.value().success);
+    REQUIRE_FALSE(response.value().result["profileId"].get<std::string>().empty());
 }
 
 TEST_CASE("GetProfile returns a not-found for an unknown id", "[serviceapi]")

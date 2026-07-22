@@ -5,6 +5,7 @@
         xmlns:views="clr-namespace:NovaVpn.App.Views"
         Title="NovaVPN" Height="640" Width="1000"
         MinHeight="540" MinWidth="820"
+        Icon="Assets/NovaVPN.ico"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -15,11 +16,17 @@
         <DataTemplate DataType="{x:Type vm:SplitTunnelViewModel}">
             <views:SplitTunnelView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StatisticsViewModel}">
+            <views:StatisticsView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:LogsViewModel}">
             <views:LogsView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AboutViewModel}">
+            <views:AboutView />
         </DataTemplate>
     </Window.Resources>
 

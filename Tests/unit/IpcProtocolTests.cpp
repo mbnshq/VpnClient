@@ -167,15 +167,18 @@ TEST_CASE("privileged methods are enumerated deliberately",
 {
     // Anything that changes where the machine's traffic goes requires an
     // elevated caller; read-only methods must not.
+    // Machine-wide policy and code installation require elevation.
     REQUIRE(requiresAdministrator(Method::SetFirewallPolicy));
     REQUIRE(requiresAdministrator(Method::SetRoutingPolicy));
     REQUIRE(requiresAdministrator(Method::SetSplitTunnelConfig));
-    REQUIRE(requiresAdministrator(Method::ImportOvpn));
-    REQUIRE(requiresAdministrator(Method::DeleteProfile));
+    REQUIRE(requiresAdministrator(Method::SetSettings));
     REQUIRE(requiresAdministrator(Method::InstallUpdate));
 
+    // Profile management and connection are normal user operations.
     REQUIRE_FALSE(requiresAdministrator(Method::Hello));
     REQUIRE_FALSE(requiresAdministrator(Method::ListProfiles));
+    REQUIRE_FALSE(requiresAdministrator(Method::ImportOvpn));
+    REQUIRE_FALSE(requiresAdministrator(Method::DeleteProfile));
     REQUIRE_FALSE(requiresAdministrator(Method::Connect));
     REQUIRE_FALSE(requiresAdministrator(Method::Disconnect));
     REQUIRE_FALSE(requiresAdministrator(Method::GetStatistics));

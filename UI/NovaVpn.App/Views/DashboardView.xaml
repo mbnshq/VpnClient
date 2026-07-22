@@ -15,20 +15,37 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="Profiles" Opacity="0.7" Margin="8,0,0,8" />
-            <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}"
-                     SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
-                     HorizontalContentAlignment="Stretch" BorderThickness="0"
-                     Background="Transparent">
-                <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type models:ProfileSummary}">
-                        <StackPanel Margin="4,8">
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Location}" Opacity="0.6" FontSize="12" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <DockPanel Grid.Row="0" Margin="8,0,0,8">
+                <Button DockPanel.Dock="Right" Content="+ Add" Padding="12,4"
+                        Command="{Binding ImportCommand}"
+                        ToolTip="Import an OpenVPN (.ovpn) profile" />
+                <TextBlock Text="Profiles" Opacity="0.7" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <Grid Grid.Row="1">
+                <ListBox ItemsSource="{Binding Profiles}"
+                         SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                         HorizontalContentAlignment="Stretch" BorderThickness="0"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:ProfileSummary}">
+                            <StackPanel Margin="4,8">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Location}" Opacity="0.6" FontSize="12" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <!-- Empty-state prompt, like a fresh OpenVPN Connect. -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="{Binding HasNoProfiles, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="No profiles yet" Opacity="0.6" HorizontalAlignment="Center" />
+                    <Button Content="Import a .ovpn file" Margin="0,12,0,0"
+                            Command="{Binding ImportCommand}"
+                            Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+            </Grid>
+
             <Button Grid.Row="2" Content="Refresh" Margin="0,8,0,0"
                     HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}" />
         </Grid>

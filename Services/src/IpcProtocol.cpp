@@ -391,18 +391,19 @@ bool requiresAdministrator(Method method) noexcept
 {
     switch (method) {
     // Machine-wide policy: a standard user may observe it but not change it.
+    // These alter how the whole machine's traffic is treated (kill switch,
+    // routing, split-tunnel enforcement, service settings) or install code.
     case Method::SetRoutingPolicy:
     case Method::SetSplitTunnelConfig:
     case Method::SetFirewallPolicy:
     case Method::SetSettings:
     case Method::InstallUpdate:
-    // Profile mutation is privileged because a profile determines where the
-    // machine's traffic goes and which certificates it trusts.
-    case Method::AddProfile:
-    case Method::UpdateProfile:
-    case Method::DeleteProfile:
-    case Method::ImportOvpn:
         return true;
+    // Profile management (add/import/update/delete) is a normal user operation:
+    // a profile only affects connections the user chooses to start, it does not
+    // change machine-wide policy on its own. Requiring elevation to add your own
+    // .ovpn would make the product unusable for a standard user, so it is not
+    // gated here (the service still validates every profile before storing it).
     default:
         return false;
     }
