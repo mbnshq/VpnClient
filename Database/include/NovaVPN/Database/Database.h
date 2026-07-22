@@ -106,4 +106,17 @@ struct Migration {
 /// The full migration list, ordered by version.
 [[nodiscard]] std::span<const Migration> migrations() noexcept;
 
+/// SQLite-backed implementation. Not opened until open() is called.
+[[nodiscard]] DatabasePtr makeSqliteDatabase();
+
+// --- Value helpers --------------------------------------------------------
+// Small conveniences so call sites read as data access rather than variant
+// juggling. All are total: a type mismatch yields the fallback, never a throw.
+
+[[nodiscard]] i64 asInt(const Value& value, i64 fallback = 0) noexcept;
+[[nodiscard]] double asDouble(const Value& value, double fallback = 0.0) noexcept;
+[[nodiscard]] std::string asText(const Value& value, std::string_view fallback = {});
+[[nodiscard]] std::vector<u8> asBlob(const Value& value);
+[[nodiscard]] bool isNull(const Value& value) noexcept;
+
 } // namespace nova::db

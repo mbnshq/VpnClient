@@ -21,6 +21,7 @@ nova_add_executable(novavpn_unit_tests
         unit/NetworkMonitorTests.cpp
         unit/ResolverTests.cpp
         unit/RouteManagerTests.cpp
+        unit/DatabaseTests.cpp
         unit/StatisticsTests.cpp
         unit/RoutingRulesTests.cpp
         unit/ProfileTests.cpp
@@ -32,6 +33,7 @@ nova_add_executable(novavpn_unit_tests
         nova::routing
         nova::profiles
         nova::services
+        nova::database
         Catch2::Catch2WithMain
     FOLDER "Tests")
 

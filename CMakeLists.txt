@@ -12,7 +12,7 @@ project(NovaVPN
     VERSION     ${NOVAVPN_VERSION}
     DESCRIPTION "NovaVPN - modern Windows VPN client"
     HOMEPAGE_URL "https://github.com/mbnshq/VpnClient"
-    LANGUAGES   CXX)
+    LANGUAGES   CXX C)   # C for the vendored SQLite amalgamation
 
 if(NOT WIN32)
     message(FATAL_ERROR "NovaVPN targets Windows 10/11 (x64) only.")
@@ -46,6 +46,9 @@ include(NovaVpnOptions)
 include(CompilerWarnings)
 include(NovaVpnModule)
 include(Dependencies)
+
+# Vendored third-party libraries built from source.
+add_subdirectory(ThirdParty/sqlite)
 
 # ---------------------------------------------------------------------------
 # Modules (see docs/ARCHITECTURE.md for the layering rules)

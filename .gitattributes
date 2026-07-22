@@ -1,0 +1,24 @@
+# Default: let Git normalise line endings for text.
+* text=auto
+
+# Source is authored with LF and checked out native.
+*.h    text
+*.cpp  text
+*.c    text
+*.cmake text
+*.txt  text
+*.md   text
+*.json text
+
+# Vendored third-party sources: store verbatim, never touched by line-ending
+# normalisation, and collapsed in diffs/language stats so they do not drown out
+# first-party code.
+ThirdParty/** linguist-vendored
+ThirdParty/sqlite/sqlite3.c -text
+ThirdParty/sqlite/sqlite3.h -text
+
+# Binary assets.
+*.png  binary
+*.ico  binary
+*.svga binary
+*.mp4  binary
