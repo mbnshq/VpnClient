@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    NovaVPN desktop client.
+
+    Built on WPF / .NET 8 rather than WinUI 3: WinUI 3's build requires Visual
+    Studio's UWP/MSIX workload (the PRI/Appx MSBuild tasks), which is not part
+    of a Build Tools installation, whereas WPF builds with the bare .NET SDK
+    from the command line. The brief sanctions this fallback, and the choice
+    costs nothing architecturally - the UI performs no networking of its own,
+    it drives the SYSTEM service over the named-pipe IPC, so the framework never
+    touches a socket. Windows 11 Fluent styling comes from .NET 8's built-in
+    Fluent theme.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- .NET 9: its WPF ships the built-in Windows 11 Fluent theme
+         (PresentationFramework.Fluent), which .NET 8 does not have. -->
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>NovaVPN</AssemblyName>
+    <RootNamespace>NovaVpn.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <Product>NovaVPN</Product>
+  </PropertyGroup>
+
+</Project>

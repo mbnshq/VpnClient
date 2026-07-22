@@ -4,12 +4,19 @@ The NovaVPN desktop client: `NovaVPN.exe`, an ordinary user-privilege process
 that talks to the service over the named pipe described in
 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
+The implementation lives in [NovaVpn.App/](NovaVpn.App/) — see its
+[README](NovaVpn.App/README.md) for build and structure.
+
 ## Framework decision
 
-**WinUI 3 (Windows App SDK) with C++/WinRT** is the target. It gives native
-Windows 11 Fluent design — Mica backdrop, rounded corners, the system motion
-system, automatic light/dark and accent-colour following — without a managed
-runtime in the process that renders untrusted profile names and server banners.
+**WPF on .NET 9** (implemented). WinUI 3 was the original target, but its build
+requires Visual Studio's UWP/MSIX workload (the PRI/Appx MSBuild tasks), which is
+not part of a Build Tools installation and cannot be driven from the command
+line — so per the brief's own fallback clause, the client is WPF. It is still a
+native Windows app and uses .NET 9's built-in Windows 11 Fluent theme; the
+choice costs nothing architecturally because the UI performs no networking of
+its own — it drives the SYSTEM service over the named-pipe IPC, so the framework
+never touches a socket.
 
 Networking integration is not a constraint on this choice: the UI performs no
 networking. It sends IPC requests and renders the events the service pushes, so

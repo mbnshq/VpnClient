@@ -5,6 +5,11 @@ install/
 *.user
 *.aps
 
+# .NET build output (UI project)
+**/bin/
+**/obj/
+
+
 # CMake
 CMakeCache.txt
 CMakeFiles/
