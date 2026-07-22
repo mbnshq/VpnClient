@@ -277,6 +277,37 @@ y
     REQUIRE(anyContains(report.value().warnings, "not read")); // file ignored
 }
 
+TEST_CASE("username/password-only config (CA, no client cert) imports as UserPassword",
+          "[ovpn]")
+{
+    // The shape most commercial providers ship: auth-user-pass with a server CA
+    // and no <cert>/<key>. It must NOT be treated as needing a client
+    // certificate - that was the "authentication requires a client certificate"
+    // import failure.
+    const char* config = R"(client
+dev tun
+proto tcp
+remote vpn.example.net 443
+remote-random
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+<ca>
+cacontent
+</ca>
+verify-x509-name example name-prefix
+remote-cert-tls server
+auth-user-pass
+auth SHA256
+)";
+    const auto report = parseOvpn(config, {});
+    REQUIRE(report.isOk());
+    REQUIRE(report.value().profile.authMethod == AuthMethod::UserPassword);
+    // And it is storable as-is (no client certificate demanded).
+    REQUIRE(report.value().profile.validate().isOk());
+}
+
 TEST_CASE("a side-file reference that escapes the base directory is refused",
           "[ovpn][security]")
 {

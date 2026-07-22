@@ -70,6 +70,7 @@ struct ParseState {
     bool          sawCa = false;
     bool          sawCert = false;
     bool          sawKey = false;
+    bool          sawAuthUserPass = false;
     bool          redirectGateway = false;
     bool          hasTlsAuth = false;
     bool          hasTlsCrypt = false;
@@ -167,9 +168,10 @@ Status applyDirective(ParseState& state, const OvpnDirective& directive,
         // With no argument the client prompts; either way the profile needs a
         // password. A referenced credentials file is deliberately NOT read -
         // NovaVPN keeps credentials in the Credential Manager, not on disk.
-        profile.authMethod = profile.authMethod == AuthMethod::Certificate
-                                 ? AuthMethod::CertificateAndPassword
-                                 : AuthMethod::UserPassword;
+        // The concrete auth method is decided at finalisation from whether a
+        // client certificate was actually present, so a username/password-only
+        // config (a CA but no <cert>) is not mislabelled as needing one.
+        state.sawAuthUserPass = true;
         if (!directive.args.empty()) {
             report.warnings.push_back(
                 "auth-user-pass referenced a credentials file; enter credentials in NovaVPN "
@@ -348,7 +350,7 @@ Result<ImportReport> parseOvpn(std::string_view text, const OvpnParseOptions& op
                                                                : options.suggestedName;
     state.profile.engine       = EngineKind::OpenVpn;
     state.profile.sourceConfig = std::string{text};
-    state.profile.authMethod   = AuthMethod::Certificate; // upgraded if auth-user-pass appears
+    state.profile.authMethod   = AuthMethod::Certificate; // finalised from what the config carries
 
     const std::vector<std::string_view> lines = str::split(text, '\n');
 
@@ -404,11 +406,22 @@ Result<ImportReport> parseOvpn(std::string_view text, const OvpnParseOptions& op
                       "configuration has no remote server (missing 'remote' directive)"};
     }
 
-    // If the config never mentioned auth-user-pass and has a client cert, it is
-    // certificate-only; if it has neither we cannot authenticate the client.
-    if (state.sawCert && state.profile.authMethod == AuthMethod::UserPassword) {
+    // Decide how the client authenticates from what the config actually carried,
+    // never from a default: a client certificate, a username/password, or both.
+    // A CA on its own authenticates the *server*, not the client, so it does not
+    // imply a client certificate - this is what a username/password profile
+    // (a <ca> but no <cert>) needs to import cleanly.
+    const bool hasClientCert =
+        state.sawCert || !state.profile.certificates.storeThumbprint.empty();
+    if (hasClientCert && state.sawAuthUserPass) {
         state.profile.authMethod = AuthMethod::CertificateAndPassword;
+    } else if (state.sawAuthUserPass) {
+        state.profile.authMethod = AuthMethod::UserPassword;
+    } else if (hasClientCert) {
+        state.profile.authMethod = AuthMethod::Certificate;
     }
+    // else: neither cert nor auth-user-pass - leave the default; validate() will
+    // reject it as un-authenticatable rather than the parser guessing.
 
     // A CA is mandatory to authenticate the server.
     if (!state.sawCa && state.profile.certificates.peerFingerprintSha256.empty()) {
