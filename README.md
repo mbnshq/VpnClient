@@ -54,7 +54,7 @@ build and pass.
 | --- | --- | --- |
 | 1 | Architecture, `Core`, `Logs`, contracts, service host, tests | ✅ complete |
 | 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
-| 3 | VPN engine: Wintun, OpenVPN, profile store, SQLite, `.ovpn` parser | pending |
+| 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry ✅ · OpenVPN engine ⏳ | in progress |
 | 4 | Split tunnel engine: WFP callout, process registry, DNS interception | pending |
 | 5 | UI: WinUI 3 shell, dashboard, profile manager, settings | pending |
 | 6 | Firewall: kill switch, leak protection, leak tester | pending |
@@ -73,11 +73,15 @@ novavpn_networking  IP/CIDR/endpoint types, network monitor (adapters, default
                     routes, change notification), scope-pinned DNS resolver
 novavpn_routing     policy vocabulary + evaluation; route-table manager with a
                     crash-recovery ledger, gateway pinning and default capture
-novavpn_profiles    profile model, validation and serialisation
+novavpn_database    SQLite catalogue (WAL, migrations, transactions)
+novavpn_profiles    profile model, .ovpn parser, credential vault, DPAPI-sealed
+                    profile store
+novavpn_driver      Wintun adapter ownership (dynamic load, signature-verified)
+novavpn_tunnel      engine registry + signed plugin loader (plugin ABI)
 novavpn_services    IPC protocol, Windows service host
-NovaVPNService.exe  the service - runs live: monitors the network, reconciles
-                    routes on start, unwinds them on stop
-novavpn_unit_tests  152 test cases, 3866 assertions
+NovaVPNService.exe  the service - runs live: opens+migrates the database,
+                    monitors the network, reconciles routes on start
+novavpn_unit_tests  217 test cases, 4232 assertions
 ```
 
 ---
