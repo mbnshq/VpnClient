@@ -259,6 +259,9 @@ certcontent
     REQUIRE(loaded.value().name == "Imported HK");
     REQUIRE(loaded.value().remotes[0].host == "hk1.example.net");
     REQUIRE_FALSE(loaded.value().sourceHash.empty());
+    // The verbatim .ovpn source must survive the round-trip (sealed separately,
+    // unsealed on load) - the engine needs it to connect.
+    REQUIRE(loaded.value().sourceConfig == config);
 }
 
 TEST_CASE("export without secrets writes a JSON document", "[profilestore]")

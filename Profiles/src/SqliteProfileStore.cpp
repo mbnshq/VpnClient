@@ -261,14 +261,44 @@ private:
 
     Result<Profile> loadById(const Id& id) const
     {
-        NOVA_ASSIGN_OR_RETURN(auto statement,
-                              m_db->prepare("SELECT document FROM profiles WHERE id = ?1"));
-        NOVA_RETURN_IF_ERROR(statement->bind(1, db::Value{id}));
+        std::string document;
+        {
+            NOVA_ASSIGN_OR_RETURN(auto statement,
+                                  m_db->prepare("SELECT document FROM profiles WHERE id = ?1"));
+            NOVA_RETURN_IF_ERROR(statement->bind(1, db::Value{id}));
+            NOVA_ASSIGN_OR_RETURN(const bool hasRow, statement->step());
+            if (!hasRow) {
+                return err::notFound("no profile with id " + id);
+            }
+            document = db::asText(statement->column(0));
+        }
+        NOVA_ASSIGN_OR_RETURN(Profile profile, fromJson(parseDocument(document)));
+        // The verbatim .ovpn source is sealed separately in profile_blobs and is
+        // NOT in the document; restore it so the engine has a config to connect
+        // with. Without this, a loaded profile connects with an empty source.
+        NOVA_RETURN_IF_ERROR(unsealSource(profile));
+        return profile;
+    }
+
+    /// Loads and decrypts the profile's sealed .ovpn source into sourceConfig.
+    /// A profile with no sealed blob is left as-is (not an error).
+    Status unsealSource(Profile& profile) const
+    {
+        NOVA_ASSIGN_OR_RETURN(
+            auto statement,
+            m_db->prepare("SELECT payload FROM profile_blobs WHERE profile_id = ?1"));
+        NOVA_RETURN_IF_ERROR(statement->bind(1, db::Value{profile.id}));
         NOVA_ASSIGN_OR_RETURN(const bool hasRow, statement->step());
         if (!hasRow) {
-            return err::notFound("no profile with id " + id);
+            return Status::ok();
         }
-        return fromJson(parseDocument(db::asText(statement->column(0))));
+        const std::vector<u8> sealed = db::asBlob(statement->column(0));
+        if (sealed.empty()) {
+            return Status::ok();
+        }
+        NOVA_ASSIGN_OR_RETURN(auto plain, crypto::unseal(sealed));
+        profile.sourceConfig = std::string{plain.view()};
+        return Status::ok();
     }
 
     Status writeProfileRow(const Profile& profile, bool isUpdate)
