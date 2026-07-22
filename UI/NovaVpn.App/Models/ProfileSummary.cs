@@ -19,6 +19,10 @@ public sealed class ProfileSummary
     public bool HasSavedPassword { get; init; }
     /// <summary>The saved username, for pre-fill (never the password).</summary>
     public string UserName { get; init; } = "";
+    /// <summary>Primary server as host:port/proto, for the detail view.</summary>
+    public string Server { get; init; } = "";
+    /// <summary>How many remote servers the profile lists.</summary>
+    public ulong RemoteCount { get; init; }
 
     public string Location =>
         string.IsNullOrEmpty(City) ? Country : $"{City}, {Country}";
@@ -35,6 +39,8 @@ public sealed class ProfileSummary
         NeedsPassword = o["needsPassword"]?.GetValue<bool>() ?? false,
         HasSavedPassword = o["hasSavedPassword"]?.GetValue<bool>() ?? false,
         UserName = o["userName"]?.GetValue<string>() ?? "",
+        Server = o["server"]?.GetValue<string>() ?? "",
+        RemoteCount = o["remoteCount"]?.GetValue<ulong>() ?? 0,
     };
 }
 

@@ -19,6 +19,9 @@
                 <Button DockPanel.Dock="Right" Content="+ Add" Padding="12,4"
                         Command="{Binding ImportCommand}"
                         ToolTip="Import an OpenVPN (.ovpn) profile" />
+                <Button DockPanel.Dock="Right" Content="Edit" Padding="12,4" Margin="0,0,8,0"
+                        Command="{Binding EditProfileCommand}"
+                        ToolTip="Rename, set username/password, or delete the selected profile" />
                 <TextBlock Text="Profiles" Opacity="0.7" VerticalAlignment="Center" />
             </DockPanel>
 
@@ -26,13 +29,24 @@
                 <ListBox ItemsSource="{Binding Profiles}"
                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
                          HorizontalContentAlignment="Stretch" BorderThickness="0"
-                         Background="Transparent">
+                         Background="Transparent"
+                         MouseDoubleClick="OnProfileDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:ProfileSummary}">
-                            <StackPanel Margin="4,8">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Location}" Opacity="0.6" FontSize="12" />
-                            </StackPanel>
+                            <Grid Margin="4,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Server}" Opacity="0.6" FontSize="12"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <Button Content="⚙" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Padding="6,0" Background="Transparent" BorderThickness="0"
+                                        Command="{Binding DataContext.EditProfileCommand,
+                                                  RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip="Edit this profile" />
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

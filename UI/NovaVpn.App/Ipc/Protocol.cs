@@ -12,6 +12,7 @@ public enum Method
     DeleteProfile = 104,
     SetProfileFavorite = 107,
     SetProfileCredentials = 108,
+    RenameProfile = 109,
     Connect = 200,
     Disconnect = 201,
     DisconnectAll = 202,

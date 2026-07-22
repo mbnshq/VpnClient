@@ -50,6 +50,7 @@ enum class Method : u16 {
     ExportProfile        = 106,
     SetProfileFavorite   = 107,
     SetProfileCredentials = 108, ///< Save/replace a profile's username+password.
+    RenameProfile        = 109, ///< Change a profile's display name.
 
     // --- connection -------------------------------------------------------
     Connect              = 200,

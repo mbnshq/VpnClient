@@ -19,6 +19,13 @@ Json profileSummaryJson(const profiles::Profile& profile)
                                profile.authMethod == AuthMethod::CertificateAndPassword ||
                                profile.authMethod == AuthMethod::UserPasswordTotp;
 
+    // Primary server, for the profile detail view (host:port/proto).
+    std::string server;
+    if (auto primary = profile.primaryRemote(); primary.has_value()) {
+        server = primary->host + ":" + std::to_string(primary->port) + "/" +
+                 std::string{nova::toString(primary->transport)};
+    }
+
     // The list view never carries secrets - just what the UI renders per row,
     // plus the flags it needs to decide whether to prompt for credentials.
     return Json{{"id", profile.id},
@@ -32,7 +39,9 @@ Json profileSummaryJson(const profiles::Profile& profile)
                 {"authMethod", std::string{profiles::toString(profile.authMethod)}},
                 {"needsPassword", needsPassword},
                 {"hasSavedPassword", needsPassword && profile.credentials.savePassword},
-                {"userName", profile.credentials.userName}};
+                {"userName", profile.credentials.userName},
+                {"server", server},
+                {"remoteCount", static_cast<u64>(profile.remotes.size())}};
 }
 
 Json tunnelJson(const tunnel::TunnelPtr& tunnel)
@@ -173,6 +182,19 @@ Result<std::vector<EventBus::Subscription>> registerServiceApi(IIpcServer& serve
 
             profile.value().credentials.userName     = userName;
             profile.value().credentials.savePassword = save && !password.empty();
+            const Status status = profiles->update(profile.value());
+            return status.isOk() ? makeSuccess(ctx.request.id, Json::object())
+                                 : makeError(ctx.request.id, status);
+        })));
+
+    NOVA_RETURN_IF_ERROR(set(Method::RenameProfile, guarded(deps.profiles != nullptr,
+        [profiles = deps.profiles](const RequestContext& ctx) {
+            const Id id = json::get<std::string>(ctx.request.params, "/id", "");
+            auto profile = profiles->get(id);
+            if (profile.isError()) {
+                return makeError(ctx.request.id, profile.status());
+            }
+            profile.value().name = json::get<std::string>(ctx.request.params, "/name", "");
             const Status status = profiles->update(profile.value());
             return status.isOk() ? makeSuccess(ctx.request.id, Json::object())
                                  : makeError(ctx.request.id, status);

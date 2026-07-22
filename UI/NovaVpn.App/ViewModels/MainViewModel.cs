@@ -47,6 +47,9 @@ public sealed class MainViewModel : PageViewModelBase
         StartServiceCommand = new RelayCommand(_ => StartServiceAsync(), _ => !IsServiceConnected);
         EditCredentialsCommand = new RelayCommand(_ => EditCredentialsAsync(),
             _ => SelectedProfile is { NeedsPassword: true });
+        EditProfileCommand = new RelayCommand(
+            p => EditProfileAsync(p as ProfileSummary ?? SelectedProfile),
+            p => (p as ProfileSummary ?? SelectedProfile) is not null);
     }
 
     public ObservableCollection<ProfileSummary> Profiles { get; } = new();
@@ -57,6 +60,7 @@ public sealed class MainViewModel : PageViewModelBase
     public RelayCommand ImportCommand { get; }
     public RelayCommand StartServiceCommand { get; }
     public RelayCommand EditCredentialsCommand { get; }
+    public RelayCommand EditProfileCommand { get; }
 
     private bool _isServiceConnected;
     public bool IsServiceConnected
@@ -96,6 +100,7 @@ public sealed class MainViewModel : PageViewModelBase
                 Refresh();
                 Raise(nameof(SelectedNeedsCredentials));
                 EditCredentialsCommand.RaiseCanExecuteChanged();
+                EditProfileCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -264,6 +269,58 @@ public sealed class MainViewModel : PageViewModelBase
         catch (IpcException ex)
         {
             StatusText = $"Could not save credentials: {ex.Message}";
+        }
+    }
+
+    /// <summary>Opens the profile detail screen: rename, credentials, or delete.</summary>
+    private async Task EditProfileAsync(ProfileSummary? target)
+    {
+        var profile = target ?? SelectedProfile;
+        if (profile is null)
+        {
+            return;
+        }
+        SelectedProfile = profile;
+        var dialog = new Views.ProfileDetailDialog(profile)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            if (dialog.Outcome == Views.ProfileDetailDialog.Result.Delete)
+            {
+                await _service.DeleteProfileAsync(profile.Id).ConfigureAwait(true);
+                StatusText = $"Deleted {profile.Name}.";
+                SelectedProfile = null;
+                await LoadProfilesAsync().ConfigureAwait(true);
+                return;
+            }
+
+            // Save: rename if changed, and update credentials when a password was
+            // entered or the username changed.
+            if (!string.Equals(dialog.ProfileName, profile.Name, StringComparison.Ordinal))
+            {
+                await _service.RenameProfileAsync(profile.Id, dialog.ProfileName).ConfigureAwait(true);
+            }
+            if (profile.NeedsPassword &&
+                (dialog.PasswordEntered ||
+                 !string.Equals(dialog.Username, profile.UserName, StringComparison.Ordinal)))
+            {
+                await _service.SetProfileCredentialsAsync(
+                    profile.Id, dialog.Username, dialog.Password, dialog.SavePassword)
+                    .ConfigureAwait(true);
+            }
+            StatusText = "Profile saved.";
+            await LoadProfilesAsync().ConfigureAwait(true);
+        }
+        catch (IpcException ex)
+        {
+            StatusText = $"Could not save the profile: {ex.Message}";
         }
     }
 

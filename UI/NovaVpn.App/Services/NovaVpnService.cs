@@ -92,6 +92,14 @@ public sealed class NovaVpnService : IDisposable
         return response.Result["profileId"]?.GetValue<string>() ?? "";
     }
 
+    /// <summary>Renames a profile.</summary>
+    public Task RenameProfileAsync(string profileId, string name, CancellationToken ct = default) =>
+        Call(Method.RenameProfile, new JsonObject { ["id"] = profileId, ["name"] = name }, ct);
+
+    /// <summary>Deletes a profile and its stored credentials.</summary>
+    public Task DeleteProfileAsync(string profileId, CancellationToken ct = default) =>
+        Call(Method.DeleteProfile, new JsonObject { ["id"] = profileId }, ct);
+
     /// <summary>Saves (or clears) a profile's username/password in the vault.</summary>
     public Task SetProfileCredentialsAsync(
         string profileId, string username, string password, bool savePassword,
