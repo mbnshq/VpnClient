@@ -171,7 +171,6 @@ TEST_CASE("privileged methods are enumerated deliberately",
     REQUIRE(requiresAdministrator(Method::SetFirewallPolicy));
     REQUIRE(requiresAdministrator(Method::SetRoutingPolicy));
     REQUIRE(requiresAdministrator(Method::SetSplitTunnelConfig));
-    REQUIRE(requiresAdministrator(Method::SetSettings));
     REQUIRE(requiresAdministrator(Method::InstallUpdate));
 
     // Profile management and connection are normal user operations.
@@ -179,6 +178,7 @@ TEST_CASE("privileged methods are enumerated deliberately",
     REQUIRE_FALSE(requiresAdministrator(Method::ListProfiles));
     REQUIRE_FALSE(requiresAdministrator(Method::ImportOvpn));
     REQUIRE_FALSE(requiresAdministrator(Method::DeleteProfile));
+    REQUIRE_FALSE(requiresAdministrator(Method::SetSettings));
     REQUIRE_FALSE(requiresAdministrator(Method::Connect));
     REQUIRE_FALSE(requiresAdministrator(Method::Disconnect));
     REQUIRE_FALSE(requiresAdministrator(Method::GetStatistics));

@@ -394,13 +394,17 @@ bool requiresAdministrator(Method method) noexcept
     switch (method) {
     // Machine-wide policy: a standard user may observe it but not change it.
     // These alter how the whole machine's traffic is treated (kill switch,
-    // routing, split-tunnel enforcement, service settings) or install code.
+    // routing, split-tunnel enforcement) or install code.
     case Method::SetRoutingPolicy:
     case Method::SetSplitTunnelConfig:
     case Method::SetFirewallPolicy:
-    case Method::SetSettings:
     case Method::InstallUpdate:
         return true;
+    // SetSettings is NOT gated: it carries application preferences (theme,
+    // start-minimised, notifications, log verbosity), not security policy. The
+    // dangerous machine changes have their own gated methods above, and the
+    // settings store validates every key, so a standard user adjusting their
+    // own app preferences must not be blocked behind an elevation prompt.
     // Profile management (add/import/update/delete) is a normal user operation:
     // a profile only affects connections the user chooses to start, it does not
     // change machine-wide policy on its own. Requiring elevation to add your own
