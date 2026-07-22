@@ -17,6 +17,12 @@ public enum Method
     Reconnect = 203,
     GetTunnels = 205,
     GetStatistics = 206,
+    ListProcesses = 304,
+    ListInstalledApps = 305,
+    RunLeakTest = 402,
+    GetSettings = 500,
+    SetSettings = 501,
+    GetLogs = 502,
     GetServiceInfo = 504,
 }
 

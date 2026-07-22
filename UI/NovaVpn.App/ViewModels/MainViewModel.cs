@@ -12,7 +12,7 @@ namespace NovaVpn.App.ViewModels;
 /// through the IPC client; events from the service marshal back onto the UI
 /// thread via the dispatcher.
 /// </summary>
-public sealed class MainViewModel : ObservableObject
+public sealed class MainViewModel : PageViewModelBase
 {
     private readonly NovaVpnService _service;
 

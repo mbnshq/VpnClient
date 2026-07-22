@@ -1,0 +1,93 @@
+<UserControl x:Class="NovaVpn.App.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:NovaVpn.App.Models">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Profile list -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Profiles" Opacity="0.7" Margin="8,0,0,8" />
+            <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}"
+                     SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                     HorizontalContentAlignment="Stretch" BorderThickness="0"
+                     Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:ProfileSummary}">
+                        <StackPanel Margin="4,8">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Location}" Opacity="0.6" FontSize="12" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <Button Grid.Row="2" Content="Refresh" Margin="0,8,0,0"
+                    HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}" />
+        </Grid>
+
+        <!-- Connection panel -->
+        <Grid Grid.Column="1" Margin="32,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,8,0,24">
+                <Border Width="112" Height="112" CornerRadius="56"
+                        Background="{DynamicResource AccentFillColorDefaultBrush}">
+                    <TextBlock Text="⛊" FontSize="48" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding ConnectionState}" FontSize="24" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,16,0,0" />
+                <TextBlock Text="{Binding StatusText}" Opacity="0.7"
+                           HorizontalAlignment="Center" Margin="0,4,0,0" />
+            </StackPanel>
+
+            <UniformGrid Grid.Row="1" Columns="4">
+                <Border Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <TextBlock Text="Download" Opacity="0.6" FontSize="12" />
+                        <TextBlock Text="{Binding DownRate}" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <TextBlock Text="Upload" Opacity="0.6" FontSize="12" />
+                        <TextBlock Text="{Binding UpRate}" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <TextBlock Text="Received" Opacity="0.6" FontSize="12" />
+                        <TextBlock Text="{Binding Received}" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <TextBlock Text="Sent" Opacity="0.6" FontSize="12" />
+                        <TextBlock Text="{Binding Sent}" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="Connect" Width="150" Height="42" FontSize="15"
+                        Command="{Binding ConnectCommand}"
+                        Style="{DynamicResource AccentButtonStyle}" />
+                <Button Content="Disconnect" Width="150" Height="42" FontSize="15"
+                        Margin="16,0,0,0" Command="{Binding DisconnectCommand}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

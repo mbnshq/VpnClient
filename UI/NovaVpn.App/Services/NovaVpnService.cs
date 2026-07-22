@@ -88,6 +88,61 @@ public sealed class NovaVpnService : IDisposable
     public Task ImportProfileAsync(string config, string name, CancellationToken ct = default) =>
         Call(Method.ImportOvpn, new JsonObject { ["config"] = config, ["name"] = name }, ct);
 
+    public async Task<JsonObject> GetSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await Call(Method.GetSettings, null, ct).ConfigureAwait(false);
+        return response.Result;
+    }
+
+    public Task SetSettingsAsync(JsonObject overlay, CancellationToken ct = default) =>
+        Call(Method.SetSettings, overlay, ct);
+
+    public async Task<IReadOnlyList<InstalledApp>> ListInstalledAppsAsync(CancellationToken ct = default)
+    {
+        var response = await Call(Method.ListInstalledApps, null, ct).ConfigureAwait(false);
+        var list = new List<InstalledApp>();
+        if (response.Result["apps"] is JsonArray rows)
+        {
+            foreach (var row in rows)
+            {
+                if (row is JsonObject o)
+                {
+                    list.Add(new InstalledApp(
+                        o["imagePath"]?.GetValue<string>() ?? "",
+                        o["displayName"]?.GetValue<string>() ?? "",
+                        o["publisher"]?.GetValue<string>() ?? ""));
+                }
+            }
+        }
+        return list;
+    }
+
+    public async Task<LeakTestResult> RunLeakTestAsync(CancellationToken ct = default)
+    {
+        var response = await Call(Method.RunLeakTest, null, ct).ConfigureAwait(false);
+        var details = new List<string>();
+        if (response.Result["details"] is JsonArray d)
+        {
+            foreach (var line in d) details.Add(line?.GetValue<string>() ?? "");
+        }
+        return new LeakTestResult(
+            response.Result["dnsLeak"]?.GetValue<bool>() ?? false,
+            response.Result["ipv6Leak"]?.GetValue<bool>() ?? false,
+            response.Result["webRtcLeak"]?.GetValue<bool>() ?? false,
+            details);
+    }
+
+    public async Task<IReadOnlyList<string>> GetLogsAsync(CancellationToken ct = default)
+    {
+        var response = await Call(Method.GetLogs, null, ct).ConfigureAwait(false);
+        var lines = new List<string>();
+        if (response.Result["lines"] is JsonArray rows)
+        {
+            foreach (var line in rows) lines.Add(line?.GetValue<string>() ?? "");
+        }
+        return lines;
+    }
+
     private async Task<IpcResponse> Call(Method method, JsonObject? parameters, CancellationToken ct)
     {
         var response = await _client.CallAsync(method, parameters, Timeout, ct).ConfigureAwait(false);
@@ -130,3 +185,8 @@ public readonly record struct TunnelState(string TunnelId, string State, string?
 
 public readonly record struct StatisticsSample(
     string TunnelId, ulong BytesSent, ulong BytesReceived, double UpBps, double DownBps);
+
+public readonly record struct InstalledApp(string ImagePath, string DisplayName, string Publisher);
+
+public readonly record struct LeakTestResult(
+    bool DnsLeak, bool Ipv6Leak, bool WebRtcLeak, IReadOnlyList<string> Details);

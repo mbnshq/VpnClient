@@ -7,15 +7,15 @@ namespace NovaVpn.App;
 public partial class MainWindow : Window
 {
     private readonly NovaVpnService _service = new();
-    private readonly MainViewModel _viewModel;
+    private readonly ShellViewModel _shell;
 
     public MainWindow()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel(_service);
-        DataContext = _viewModel;
+        _shell = new ShellViewModel(_service);
+        DataContext = _shell;
 
-        Loaded += async (_, _) => await _viewModel.InitializeAsync();
+        Loaded += async (_, _) => await _shell.InitializeAsync();
         Closed += (_, _) => _service.Dispose();
     }
 }
