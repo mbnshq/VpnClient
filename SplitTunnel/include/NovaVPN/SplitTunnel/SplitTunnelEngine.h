@@ -120,4 +120,34 @@ public:
 
 using SplitTunnelEnginePtr = std::shared_ptr<ISplitTunnelEngine>;
 
+/// Pure classification: given the split-tunnel config plus a process's image
+/// path and (optionally) the flow's remote address, decides where the flow goes.
+/// This is the decision the WFP callout consults; separating it out makes the
+/// policy fully unit-testable without the kernel driver.
+class SplitTunnelClassifier {
+public:
+    explicit SplitTunnelClassifier(SplitTunnelConfig config);
+
+    void setConfig(SplitTunnelConfig config);
+    [[nodiscard]] const SplitTunnelConfig& config() const noexcept { return m_config; }
+
+    /// Decides the disposition for a flow from `imagePath` to `remote`.
+    /// In Include mode an unlisted app is Direct; in Exclude mode it is Tunnel.
+    /// An explicit IP/domain rule overrides the app decision.
+    [[nodiscard]] routing::RouteDecision classify(
+        std::string_view imagePath,
+        std::optional<net::IpAddress> remote = std::nullopt) const;
+
+private:
+    SplitTunnelConfig      m_config;
+    routing::RoutingPolicy m_policy;
+    void rebuild();
+};
+
+/// Creates the split-tunnel engine over the process registry. The engine owns
+/// the classifier and the live flow attribution; enforcement (WFP bind/connect
+/// redirection) is performed by the callout driver, which consults the
+/// classifier. `registry` may be null in a reduced configuration.
+[[nodiscard]] SplitTunnelEnginePtr makeSplitTunnelEngine(ProcessRegistryPtr registry);
+
 } // namespace nova::splittunnel
