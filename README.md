@@ -60,7 +60,7 @@ build and pass.
 | 6 | Firewall: WFP kill switch + DNS/IPv6/WebRTC leak tester | ✅ complete |
 | 7 | Updater: signature/hash/manifest + download/verify/stage | ✅ complete |
 | 8 | Installer (WiX MSI: service, driver, firewall rule, shortcut) | ✅ complete |
-| 9 | Testing | ongoing (277 unit cases, 5,244 assertions) |
+| 9 | Testing: unit + concurrency-stress + integration + fuzz + benchmarks | ✅ 298 cases, 85k assertions |
 | 10 | Optimisation | pending |
 
 Also built: named-pipe IPC transport (server + client), tunnel manager, and the

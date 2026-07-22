@@ -293,7 +293,7 @@ loading. An ABI major-version mismatch is refused.
 | 6 | WFP kill switch + DNS/IPv6/WebRTC leak tester | **complete** |
 | 7 | Updater: signature/hash/manifest + download/verify/stage | **complete** |
 | 8 | WiX MSI installer (service, driver, firewall rule, shortcut) | **complete** |
-| 9 | Testing | ongoing (277 unit cases) |
+| 9 | Testing: unit, concurrency-stress, integration, fuzz, benchmarks | **substantially complete** (298 cases, 85k assertions) |
 | 10 | Optimisation | pending |
 
 Also complete outside the original phase numbering: the named-pipe IPC transport
