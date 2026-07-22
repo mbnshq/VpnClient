@@ -277,7 +277,8 @@ private:
         NOVA_LOG_INFO(Channel::Tunnel, "state")
             .field("tunnel", m_id)
             .field("from", std::string{nova::toString(previous)})
-            .field("to", std::string{nova::toString(next)});
+            .field("to", std::string{nova::toString(next)})
+            .field("reason", reason.isOk() ? std::string{} : reason.message());
 
         if (m_deps.events) {
             TunnelStateChanged event;

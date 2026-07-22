@@ -206,6 +206,17 @@ public:
         ovpnConfig.tunPersist    = false;
         ovpnConfig.guiVersion    = "NovaVPN";
         ovpnConfig.connTimeout   = 60;
+        // Use Wintun, which NovaVPN ships (wintun.dll sits next to the service).
+        // Without this OpenVPN3 defaults to the tap-windows6 driver, which is not
+        // installed, and connect() faults instantly before it ever reaches the
+        // network.
+        ovpnConfig.wintun        = true;
+        // A username/password profile carries no client certificate. Tell
+        // OpenVPN3 not to expect one, otherwise it falls back to external-PKI
+        // and faults with "Missing External PKI alias" before connecting.
+        ovpnConfig.disableClientCert =
+            config.profile.authMethod == profiles::AuthMethod::UserPassword ||
+            config.profile.authMethod == profiles::AuthMethod::UserPasswordTotp;
 
         const ovpn::EvalConfig eval = m_client->eval_config(ovpnConfig);
         if (eval.error) {
