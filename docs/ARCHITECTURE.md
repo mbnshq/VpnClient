@@ -288,10 +288,15 @@ loading. An ABI major-version mismatch is refused.
 | 1 | Architecture, Core, Logs, contracts, service host, tests | **complete** |
 | 2 | Resolver, network monitor, route manager | **complete** |
 | 3 | Wintun, OpenVPN engine, profile store, SQLite, `.ovpn` parser | **complete** |
-| 4 | WFP callout, process registry, split-tunnel engine | pending |
-| 5 | WinUI 3 shell, dashboard, profile manager, settings | pending |
-| 6 | Kill switch, DNS/IPv6/WebRTC leak protection, leak tester | pending |
-| 7 | Updater | pending |
-| 8 | Installer (service, driver, firewall rules, shortcuts) | pending |
-| 9 | Integration, stress, leak tests, benchmarks | pending |
+| 4 | Process registry **done**; WFP callout driver (WDK) pending | partial |
+| 5 | WinUI 3 shell, dashboard, profile manager, settings | pending (needs Windows App SDK) |
+| 6 | WFP kill switch **done**; DNS/IPv6/WebRTC leak tester pending | partial |
+| 7 | Updater signature/hash/manifest core **done**; download/apply pending | partial |
+| 8 | Installer (service, driver, firewall rules, shortcuts) | pending (needs WiX) |
+| 9 | Integration, stress, leak tests, benchmarks | ongoing (260 cases so far) |
 | 10 | Optimisation | pending |
+
+Also complete outside the original phase numbering: the named-pipe IPC transport
+(server + client), the tunnel manager, and the service API wiring the whole
+backend together over IPC. The service runs end-to-end: it opens the database,
+registers engines, builds the tunnel manager and listens on its pipe.

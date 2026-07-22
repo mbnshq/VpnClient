@@ -55,13 +55,18 @@ build and pass.
 | 1 | Architecture, `Core`, `Logs`, contracts, service host, tests | ✅ complete |
 | 2 | Core networking: resolver, network monitor, route manager | ✅ complete |
 | 3 | VPN engine: SQLite, `.ovpn` parser, credentials, profile store, Wintun, engine registry, OpenVPN engine | ✅ complete |
-| 4 | Split tunnel engine: WFP callout, process registry, DNS interception | pending |
+| 4 | Split tunnel: process registry ✅ · WFP callout driver (WDK) | partial |
 | 5 | UI: WinUI 3 shell, dashboard, profile manager, settings | pending |
-| 6 | Firewall: kill switch, leak protection, leak tester | pending |
-| 7 | Updater | pending |
+| 6 | Firewall: WFP kill switch ✅ · DNS/IPv6/WebRTC leak tester | partial |
+| 7 | Updater: signature/hash/manifest core ✅ · download/apply | partial |
 | 8 | Installer | pending |
-| 9 | Integration, stress, leak tests, benchmarks | pending |
+| 9 | Integration, stress, leak tests, benchmarks | ongoing (260 cases) |
 | 10 | Optimisation | pending |
+
+Also built: named-pipe IPC transport (server + client), tunnel manager, and the
+service API wiring the backend together. **The service runs end to end** — opens
+the database, registers engines, builds the tunnel manager, and listens on its
+pipe; a client can list/import profiles and connect/disconnect tunnels over IPC.
 
 What builds today:
 
