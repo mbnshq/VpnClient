@@ -179,8 +179,10 @@ public:
         tunnel::TunnelManagerDeps tunnelDeps;
         tunnelDeps.engines = m_engines;
         tunnelDeps.events  = m_events;
+        // One Wintun adapter is provisioned, and a tunnel owns its ring buffers
+        // exclusively, so one tunnel at a time is the honest default.
         tunnelDeps.maxConcurrentTunnels =
-            static_cast<u32>(m_config->get<int>("/service/maxConcurrentTunnels", 4));
+            static_cast<u32>(m_config->get<int>("/service/maxConcurrentTunnels", 1));
         m_tunnels = tunnel::makeTunnelManager(tunnelDeps);
 
         // IPC last, so no client can call in before the subsystems are built.

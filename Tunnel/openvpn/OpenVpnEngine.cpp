@@ -217,6 +217,12 @@ public:
         ovpnConfig.disableClientCert =
             config.profile.authMethod == profiles::AuthMethod::UserPassword ||
             config.profile.authMethod == profiles::AuthMethod::UserPasswordTotp;
+        // Many providers still push LZO compression. Refusing it outright drops
+        // an otherwise healthy session with COMPRESS_ERROR, but compressing what
+        // *we* send is what makes a VPN vulnerable to VORACLE. "asym" is the
+        // setting that satisfies both: accept (decompress) what the server
+        // pushes, never compress our own plaintext.
+        ovpnConfig.compressionMode = "asym";
 
         const ovpn::EvalConfig eval = m_client->eval_config(ovpnConfig);
         if (eval.error) {

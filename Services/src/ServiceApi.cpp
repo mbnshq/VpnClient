@@ -212,6 +212,12 @@ Result<std::vector<EventBus::Subscription>> registerServiceApi(IIpcServer& serve
                 return makeError(ctx.request.id, profile.status());
             }
 
+            // One virtual adapter means one live tunnel: a second connect would
+            // race the first for the adapter's ring buffers and fail with
+            // "initialization has already been completed". Connecting therefore
+            // replaces whatever is running rather than stacking on top of it.
+            (void)tunnels->disconnectAll();
+
             auto tunnel = tunnels->create(profile.value());
             if (tunnel.isError()) {
                 return makeError(ctx.request.id, tunnel.status());
