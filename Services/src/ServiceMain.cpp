@@ -24,6 +24,7 @@
 #include <NovaVPN/Core/WinError.h>
 #include <NovaVPN/Logs/Logger.h>
 #include <NovaVPN/Database/Database.h>
+#include <NovaVPN/Driver/WintunAdapter.h>
 #include <NovaVPN/Firewall/FirewallEngine.h>
 #include <NovaVPN/Networking/NetworkMonitor.h>
 #include <NovaVPN/Networking/Resolver.h>
@@ -116,6 +117,31 @@ public:
         m_credentials  = profiles::makeCredentialStore();
         m_profileStore = profiles::makeProfileStore(m_database, m_credentials);
         NOVA_RETURN_IF_ERROR(m_profileStore->open());
+
+        // Virtual adapter: the OpenVPN engine opens an existing Wintun adapter
+        // but never creates one (OpenVPN3 has no adapter-creation path at all -
+        // upstream relies on an installer or its agent to provision it). So the
+        // service owns the adapter and provisions it here, before any tunnel
+        // can ask for it. A failure is not fatal: the rest of the service still
+        // runs and reports the problem rather than refusing to start.
+        m_wintun = driver::makeWintunDriver();
+        if (const Status status = m_wintun->load(); status.isError()) {
+            NOVA_LOG_WARN(Channel::Driver, "wintun.dll unavailable; tunnels cannot start")
+                .status(status);
+            m_wintun.reset();
+        } else {
+            auto adapter = m_wintun->createAdapter(std::string{kAdapterName}, "NovaVPN");
+            if (adapter.isError()) {
+                NOVA_LOG_ERROR(Channel::Driver, "could not provision the Wintun adapter")
+                    .status(adapter.status());
+            } else {
+                m_adapter = std::move(adapter).value();
+                NOVA_LOG_INFO(Channel::Driver, "wintun adapter ready")
+                    .field("name", m_adapter->info().name)
+                    .field("interface", m_adapter->info().interfaceIndex)
+                    .field("driver", m_adapter->info().driverVersion);
+            }
+        }
 
         // Protocol engines: register the built-ins available in this build.
         m_engines = tunnel::makeEngineRegistry();
@@ -231,6 +257,11 @@ public:
                     .status(status);
             }
         }
+        // The adapter outlives the tunnels but not the service: release it after
+        // everything that could still be sending packets has stopped.
+        m_adapter.reset();
+        m_wintun.reset();
+
         if (m_profileStore) {
             m_profileStore->close();
         }
@@ -343,8 +374,13 @@ private:
         return Status::ok();
     }
 
+    /// Name of the virtual adapter the service provisions for the engine.
+    static constexpr std::string_view kAdapterName = "NovaVPN";
+
     std::unique_ptr<ConfigStore>       m_config;
     std::shared_ptr<EventBus>          m_events;
+    driver::WintunDriverPtr            m_wintun;
+    std::shared_ptr<driver::IWintunAdapter> m_adapter;
     routing::RouteManagerPtr           m_routes;
     net::NetworkMonitorPtr             m_monitor;
     net::ResolverPtr                   m_resolver;

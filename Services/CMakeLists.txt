@@ -33,5 +33,8 @@ nova_add_executable(NovaVPNService
         src/ServiceMain.cpp
     DEPENDS
         nova::services
+        # The host owns the Wintun adapter: the OpenVPN engine opens an existing
+        # adapter but never creates one, so the service provisions it at start.
+        nova::driver
     OUTPUT_NAME NovaVPNService
     FOLDER "Applications")
