@@ -259,6 +259,42 @@ public:
                 host.onStateChanged(ConnectionState::Disconnected, Status::ok());
             }
         });
+
+        // OpenVPN3 does not push traffic counters; they are polled. Without this
+        // the UI can only ever show zeroes for a live session.
+        if (host.onCounters) {
+            m_statsStop = false;
+            m_statsWorker = std::thread([this, host] {
+                ::SetThreadDescription(::GetCurrentThread(), L"NovaVPN.OpenVPN.Stats");
+                while (!m_statsStop.load(std::memory_order_acquire)) {
+                    {
+                        std::lock_guard lock{m_mutex};
+                        if (m_client) {
+                            const ovpn::InterfaceStats  tun  = m_client->tun_stats();
+                            const ovpn::TransportStats  wire = m_client->transport_stats();
+
+                            net::TrafficCounters counters;
+                            counters.wireBytesSent     = static_cast<ByteCount>(wire.bytesOut);
+                            counters.wireBytesReceived = static_cast<ByteCount>(wire.bytesIn);
+                            // Prefer the tun payload counters, but OpenVPN3 does
+                            // not instrument them on the Windows tun path - fall
+                            // back to the transport totals so a live session
+                            // reports real traffic instead of zeroes.
+                            counters.bytesSent =
+                                static_cast<ByteCount>(tun.bytesOut > 0 ? tun.bytesOut : wire.bytesOut);
+                            counters.bytesReceived =
+                                static_cast<ByteCount>(tun.bytesIn > 0 ? tun.bytesIn : wire.bytesIn);
+                            counters.packetsSent =
+                                static_cast<u64>(tun.packetsOut > 0 ? tun.packetsOut : wire.packetsOut);
+                            counters.packetsReceived =
+                                static_cast<u64>(tun.packetsIn > 0 ? tun.packetsIn : wire.packetsIn);
+                            host.onCounters(counters);
+                        }
+                    }
+                    ::Sleep(1000);
+                }
+            });
+        }
         return Status::ok();
     }
 
@@ -266,10 +302,19 @@ public:
     {
         requestStop();
 
+        // Stop polling before the client goes away: the poller takes m_mutex and
+        // touches m_client, so it must be joined outside the lock and before the
+        // reset below.
+        m_statsStop.store(true, std::memory_order_release);
+        std::thread statsWorker;
         std::thread worker;
         {
             std::lock_guard lock{m_mutex};
-            worker = std::move(m_worker);
+            worker      = std::move(m_worker);
+            statsWorker = std::move(m_statsWorker);
+        }
+        if (statsWorker.joinable()) {
+            statsWorker.join();
         }
         if (worker.joinable()) {
             worker.join();
@@ -324,6 +369,9 @@ private:
     mutable std::mutex                 m_mutex;
     std::unique_ptr<NovaOpenVpnClient> m_client;
     std::thread                        m_worker;
+    /// Polls OpenVPN3 for traffic counters, which it never pushes on its own.
+    std::thread                        m_statsWorker;
+    std::atomic<bool>                  m_statsStop{true};
     CancellationToken::Registration    m_cancelReg;
 };
 

@@ -12,10 +12,26 @@
 
         <TextBlock Grid.Row="0" Text="Split tunnel" FontSize="20" FontWeight="SemiBold" />
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12">
-            <CheckBox Content="Enable split tunnelling" IsChecked="{Binding Enabled}" />
-            <RadioButton Content="Only checked apps use the VPN" IsChecked="{Binding IncludeMode}"
-                         Margin="24,0,0,0" GroupName="mode" />
+        <StackPanel Grid.Row="1" Margin="0,12">
+            <!-- Be honest: the selection below is stored and shown, but nothing
+                 enforces it yet. Per-application routing needs a kernel filtering
+                 driver that is not part of this build, so every app currently
+                 uses the tunnel regardless of what is ticked. -->
+            <Border CornerRadius="6" Padding="12,10" Margin="0,0,0,12"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="Not enforced yet" FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,4,0,0"
+                               Text="Per-app routing requires a kernel network-filtering driver that this build does not include. Your choices are saved, but for now every application uses the VPN while it is connected." />
+                </StackPanel>
+            </Border>
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Content="Enable split tunnelling" IsChecked="{Binding Enabled}" />
+                <RadioButton Content="Only checked apps use the VPN" IsChecked="{Binding IncludeMode}"
+                             Margin="24,0,0,0" GroupName="mode" />
+            </StackPanel>
         </StackPanel>
 
         <Border Grid.Row="2" BorderThickness="1"
