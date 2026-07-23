@@ -28,6 +28,15 @@
     <ApplicationIcon>Assets\NovaVPN.ico</ApplicationIcon>
     <Version>0.1.0</Version>
     <Product>NovaVPN</Product>
+    <!--
+      WPF's native layer (wpfgfx, PresentationNative, PenImc, D3DCompiler,
+      vcruntime) is P/Invoked, and a single-file publish leaves those DLLs
+      loose beside the executable unless this is set. Anything that ships the
+      .exe on its own - an installer copying just the binary - then crashes at
+      startup with DllNotFoundException the first time WPF touches a window.
+      Bundling them into the executable makes the file genuinely standalone.
+    -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>

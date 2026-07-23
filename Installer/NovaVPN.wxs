@@ -29,7 +29,12 @@
            Compressed="yes">
 
     <!-- Block a downgrade and clean-swap on upgrade. -->
-    <MajorUpgrade DowngradeErrorMessage="A newer version of NovaVPN is already installed." />
+    <!-- AllowSameVersionUpgrades: without it, reinstalling the same version is
+         a no-op - Windows Installer skips files whose version matches what is
+         already on disk, so a rebuilt binary is silently ignored and the user
+         keeps running the old one. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of NovaVPN is already installed." />
 
     <MediaTemplate EmbedCab="yes" />
 
